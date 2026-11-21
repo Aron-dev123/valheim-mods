@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- Dieselbe Biom-Logik wie in der Mod, damit die Vorschau genau passt. -->
+  <ItemGroup>
+    <Compile Include="..\..\Breitengrade\Latitude.cs" Link="Latitude.cs" />
+  </ItemGroup>
+
+</Project>
