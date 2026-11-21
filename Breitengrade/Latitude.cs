@@ -25,9 +25,9 @@ namespace Breitengrade
         /// Die Welt reicht von -10000 bis +10000. Meadows liegt über der Mitte (0),
         /// damit der Startpunkt dort bleibt.
         /// </summary>
-        public static float[] Bounds = { -7500f, -3000f, 1500f, 3000f, 4500f, 6000f, 7800f };
+        public static float[] Bounds = { -6650f, -3200f, 1000f, 1900f, 4900f, 7000f, 8150f };
 
-        public const string DefaultBounds = "-7500,-3000,1500,3000,4500,6000,7800";
+        public const string DefaultBounds = "-6650,-3200,1000,1900,4900,7000,8150";
 
         /// <summary>Wie stark die Grenzen wellig sind (Meter nach Nord/Süd).</summary>
         public static float WobbleAmplitude = 400f;

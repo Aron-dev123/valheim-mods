@@ -21,6 +21,7 @@ namespace Breitengrade
                 Latitude.TryParseBounds(Latitude.DefaultBounds, out bounds);
             }
             Latitude.Configure(world.m_seed, bounds, Plugin.Wobble.Value);
+            LocationScaler.OnWorldChanged();
             Plugin.Log.LogInfo($"Breitengrade AKTIV für Welt \"{world.m_name}\" (Seed {world.m_seedName}).");
         }
     }

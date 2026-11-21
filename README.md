@@ -17,8 +17,16 @@ Ashlands → Plains → Meadows → Swamp → Mistlands → Black Forest → Mou
   Alle anderen Welten bleiben unverändert.
 - Grenzen, Welligkeit, Mindesthöhe und Berg-Anhebung lassen sich in
   `BepInEx\config\aron.valheim.breitengrade.cfg` einstellen.
+- Die Bandbreiten orientieren sich an den Flächenanteilen normaler Welten,
+  Meadows liegt aber immer in der Mitte (Startpunkt).
+- Die Anzahl der Strukturen (Krypten, Dörfer, Türme …) wird an die Fläche
+  jedes Bioms angepasst, damit die Dichte ungefähr wie in normalem Valheim bleibt.
+- Die Bänder werden intern in Teilgebiete zerschnitten, damit Biom-Varianten
+  (z. B. „Dark Meadows“, „Bog Swamp“) und ihre speziellen Orte entstehen können.
 - Im Multiplayer brauchen alle Spieler (und der Server) die Mod.
-- Ohne Ozean gibt es keine Seeschlangen und Leviathane.
+- Ohne Ozean gibt es keine Seeschlangen, Leviathane und Schiffswracks.
+- Im Log (`BepInEx\LogOutput.log`) stehen unter `[Strukturen]` und `[Diagnose]`
+  die angepassten Mengen und die Biom-Varianten.
 
 Vorschau der Karte ohne Spielstart (`tools/BiomVorschau`):
 

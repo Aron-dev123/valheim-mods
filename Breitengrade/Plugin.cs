@@ -10,7 +10,7 @@ namespace Breitengrade
     {
         public const string Guid = "aron.valheim.breitengrade";
         public const string ModName = "Breitengrade";
-        public const string Version = "0.1.0";
+        public const string Version = "0.2.0";
 
         internal static ManualLogSource Log;
         internal static ConfigEntry<string> WorldName;
@@ -18,6 +18,11 @@ namespace Breitengrade
         internal static ConfigEntry<float> Wobble;
         internal static ConfigEntry<float> LandMin;
         internal static ConfigEntry<float> MountainLift;
+        internal static ConfigEntry<float> MaxStructureFactor;
+        internal static ConfigEntry<float> SectorSize;
+
+        /// <summary>Standard-Grenzen der Version 0.1.0, werden automatisch auf die neuen umgestellt.</summary>
+        const string OldDefaultBounds = "-7500,-3000,1500,3000,4500,6000,7800";
 
         void Awake()
         {
@@ -35,6 +40,17 @@ namespace Breitengrade
                 "Niedrigste Grundhöhe des Landes (Meeresspiegel liegt bei 0.15). Höher = weniger Wasserstellen.");
             MountainLift = Config.Bind("Gelände", "BergAnhebung", 0.25f,
                 "Wie stark das Mountain-Band zusätzlich angehoben wird, damit es echte Berge gibt.");
+            MaxStructureFactor = Config.Bind("Strukturen", "MaxFaktor", 6f,
+                "Strukturen werden an die Biom-Fläche angepasst (größeres Biom = mehr Strukturen). " +
+                "Höchstens um diesen Faktor mehr als in normalem Valheim.");
+            SectorSize = Config.Bind("Strukturen", "TeilgebietGroesse", 1500f,
+                "Größe (Meter) der Teilgebiete, in die die Bänder für Biom-Varianten zerschnitten werden.");
+
+            if (BandBounds.Value == OldDefaultBounds)
+            {
+                BandBounds.Value = Latitude.DefaultBounds;
+                Log.LogInfo("Biom-Grenzen auf die neuen Standardwerte umgestellt.");
+            }
 
             new Harmony(Guid).PatchAll();
             Log.LogInfo($"{ModName} {Version} geladen. Aktiv nur für die Welt \"{WorldName.Value}\".");
