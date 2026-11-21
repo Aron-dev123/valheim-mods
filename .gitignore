@@ -1,0 +1,17 @@
+# Build-Ergebnisse
+bin/
+obj/
+*.user
+.vs/
+
+# Lokale Einstellungen (z. B. abweichender Valheim-Pfad)
+Directory.Build.user.props
+
+# Spiel-DLLs von Iron Gate / Unity nie ins Repo
+*.dll
+*.pdb
+
+# Spielstände nie ins Repo
+*.fwl
+*.db
+*.fch

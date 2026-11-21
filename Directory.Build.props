@@ -1,0 +1,14 @@
+<Project>
+  <!--
+    Gemeinsame Einstellungen für alle Mods in diesem Repo.
+    Liegt Valheim woanders, eine Datei Directory.Build.user.props anlegen
+    (wird nicht committet) und dort ValheimPath überschreiben.
+  -->
+  <PropertyGroup>
+    <ValheimPath>C:\Program Files (x86)\Steam\steamapps\common\Valheim</ValheimPath>
+    <ValheimManaged>$(ValheimPath)\valheim_Data\Managed</ValheimManaged>
+    <BepInExCore>$(ValheimPath)\BepInEx\core</BepInExCore>
+    <BepInExPlugins>$(ValheimPath)\BepInEx\plugins</BepInExPlugins>
+  </PropertyGroup>
+  <Import Project="Directory.Build.user.props" Condition="Exists('Directory.Build.user.props')" />
+</Project>
