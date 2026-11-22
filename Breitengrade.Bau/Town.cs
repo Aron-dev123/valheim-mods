@@ -71,6 +71,7 @@ namespace Breitengrade.Bau
                     yield return (c, 26f, 22f);    // die Ehr auf dem Berg
                     break;
             }
+            foreach (var h in NamedHills(p)) yield return h;
         }
 
         public static float HillHeight(CityBuilder.Plan p, Vector3 at)
@@ -424,13 +425,22 @@ namespace Breitengrade.Bau
                 var pc = new Vector3(plot.C.x, lo, plot.C.z);
                 WithFrame(pc, plot.Yaw, () =>
                 {
-                    if (plot.Kind == 1) { Garden(pc, Math.Min(plot.W, plot.D) - 1.2f, k); return; }
+                    bool ruin = s_ruin > 0.25f, jungle = JungleRuins(p.Name);
+                    if (plot.Kind == 1)
+                    {
+                        if (ruin && !jungle) RuinDetails(pc, plot.W, plot.D, false); // verbrannt/Wüste: kein Grün
+                        else Garden(pc, Math.Min(plot.W, plot.D) - 1.2f, k);
+                        return;
+                    }
                     if (s.Mark == Mark.Huts || s.Mark == Mark.Hardhome || s.Mark == Mark.Stilts)
                     {
-                        Hut(pc, plot.W, plot.D, k, s.Mark == Mark.Stilts, 0);
+                        if (s.Mark == Mark.Hardhome && s_rng.NextDouble() < 0.3)
+                            WithRuin(0.5f, () => Hut(pc, plot.W, plot.D, k, false, 0)); // verbrannt
+                        else Hut(pc, plot.W, plot.D, k, s.Mark == Mark.Stilts, 0);
                         return;
                     }
                     House2(s, pc, plot.W, plot.D, k, upper);
+                    if (ruin) RuinDetails(pc, plot.W, plot.D, jungle);
                 });
             }
             Plugin.Log.LogInfo($"[Bau] {p.Name}: {t.Streets.Count} Straßenstücke, {t.Plots.Count} Bauplätze, {built} gebaut, {slope} am Hang. " +

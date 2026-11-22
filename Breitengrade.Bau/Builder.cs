@@ -283,6 +283,7 @@ namespace Breitengrade.Bau
             float inner = Layout(plan).inner;
             if (style.Mark == Mark.Tents) Houses(style, c, inner, houseKit);
             else BuildTown(style, plan, c, houseKit);
+            try { Docks(plan); } catch (Exception e) { Plugin.Log.LogWarning($"[Bau] Hafen {plan.Name}: {e.Message}"); }
             try { MovePin(plan); } catch (Exception e) { Plugin.Log.LogWarning($"[Bau] Markierung {plan.Name}: {e.Message}"); }
             return s_count;
         }
@@ -323,6 +324,12 @@ namespace Breitengrade.Bau
         // ---------------------------------------------------------------- Wahrzeichen
 
         static void Landmark(Style s, Vector3 c, float R, Kit wall, Kit house, Kit keep)
+        {
+            LandmarkCore(s, c, R, wall, house, keep);
+            if (s_plan != null) NamedExtras(s_plan.Name, s, c, R, wall, house, keep);
+        }
+
+        static void LandmarkCore(Style s, Vector3 c, float R, Kit wall, Kit house, Kit keep)
         {
             Reserve(c, 10f); // Platz in der Mitte
             switch (s.Mark)
@@ -597,6 +604,7 @@ namespace Breitengrade.Bau
                     break;
 
                 default:
+                    if (s_plan != null && NamedCastle(s_plan.Name, c, R, keep, house)) break;
                     if (s_plan != null && s_plan.Name == "Dragonstone")
                     {
                         Castle(c, 22f, 18f, keep, 4, true, HallKind.PaintedTable);
@@ -1077,14 +1085,8 @@ namespace Breitengrade.Bau
             string[] torch = s.HouseMat == Mat.Stone || s.HouseMat == Mat.Marble
                 ? new[] { "piece_groundtorch", "piece_groundtorch_wood" } : new[] { "piece_groundtorch_wood", "piece_groundtorch" };
 
-            // Brunnen am Platz (falls frei)
-            var well = c + new Vector3(0f, 0f, 0f);
-            var stone = KitOf(Mat.Stone);
-            if (Free(well, 2f) && stone.Merlon != null)
-            {
-                foreach (var (x, z) in new[] { (-1f, -1f), (0f, -1f), (1f, -1f), (-1f, 0f), (1f, 0f), (-1f, 1f), (0f, 1f), (1f, 1f) })
-                    Put(stone.Merlon, c + new Vector3(x * stone.Merlon.Width, 0f, z * stone.Merlon.Width), 0f, 0.2f);
-            }
+            // Statue in der Stadtmitte
+            CenterStatue(c);
             // Marktstände mit Dach rund um den Platz, dazu Bäume an den Ecken
             var pole = PickAny("wood_pole2", "wood_pole");
             var roof = KitOf(Mat.Dark).Roof;
