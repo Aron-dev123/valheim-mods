@@ -139,6 +139,7 @@ namespace Breitengrade
 
         /// <summary>Biom inklusive offenem Meer.</summary>
         public static int GetBiome(float x, float z) =>
+            Planetos.Enabled && Planetos.IsOnWall(x, z) ? DeepNorth :
             CoastDistance(x, z) > OpenSeaDistance ? Ocean : GetLandBiome(x, z);
 
         /// <summary>Wie weit (Meter) ein Punkt in den Ashlands liegt. Positiv = drin.</summary>

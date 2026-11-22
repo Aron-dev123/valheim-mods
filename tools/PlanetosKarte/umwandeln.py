@@ -1,19 +1,25 @@
 """
-Wandelt die Planetos-Fan-Karte (als RGB-Rohdaten) in eine Valheim-Biom-Karte um.
+Wandelt die Planetos-Karte (Westeros/Essos/Sothoryos mit Ortsnamen, 2000 x 1666) in eine
+Valheim-Biom-Karte um.
 
-Eingabe:  planetos.rgb  (1080 x 658, je Pixel 3 Bytes R G B, zeilenweise)
-          Erzeugen unter Windows z. B. mit System.Drawing aus dem JPG (siehe README).
+Eingabe:  RGB-Rohdaten der Karte (je Pixel 3 Bytes R G B, zeilenweise), unter Windows z. B. mit
+          System.Drawing aus dem JPG erzeugt (siehe README).
 Ausgabe:  ../../Breitengrade/Planetos.biome.gz  (Kopf: Breite, Höhe als uint16; danach 1 Byte je Pixel)
           ../../planetos-vorschau.png
 
-Regeln (vom Nutzer vorgegeben):
-  Norden / Schnee  -> Deep North      Süden / Eis        -> Ashlands (Hauptinsel)
-  Grasland         -> Meadows         nördliches Gras    -> Black Forest
-  Wüste            -> Plains          Dschungel (Süden)  -> Mistlands
-  Mountain         -> Streifen südlich der Mauer, zwischen Deep North und Black Forest
-  Swamp            -> ein paar Flecken in der Mitte der Karte (Essos, die Eng in Westeros)
+Farben der Karte: Meer blau, Land weiß, Wald grün, Gebirge grau, Schrift/Linien dunkel.
 
-Aufruf: python -I umwandeln.py <planetos.rgb>
+Biome (Vorgaben):
+  nördlich der Mauer            -> Deep North
+  Streifen südlich der Mauer    -> Mountain
+  der Norden bis zur Eng, Ibben -> Black Forest
+  Westeros und Freie Städte     -> Meadows (Dorne -> Plains)
+  Essos östlich davon           -> Plains (Dothrakisee, Rote Wüste, Ghiscar …), Wälder dort -> Meadows
+  Sothoryos und Ulthos          -> Mistlands
+  Sümpfe: die Eng, die Sorrows am Rhoyne, Essos Mitte
+Unter der Mauer wird durchgehend Land gesetzt (keine Bucht, kein Fluss).
+
+Aufruf: python -I umwandeln.py <karte.rgb>
 """
 import gzip
 import math
@@ -22,23 +28,23 @@ import sys
 import zlib
 from pathlib import Path
 
-W, H = 1080, 658
+W, H = 2000, 1666
 OCEAN, MEADOWS, SWAMP, MOUNTAIN, BLACKFOREST, PLAINS, ASHLANDS, DEEPNORTH, MISTLANDS = range(9)
 
-# Breitengrade (Pixelzeilen) der Klimazonen
-WALL_V = 192          # die Mauer
-MOUNTAIN_END = 207    # südlich der Mauer: Mountain bis hier
-BLACKFOREST_END = 245 # danach Black Forest bis hier (nur Grünland)
-JUNGLE_START = 395    # Sothoryos: Grünland ab hier ist Dschungel
-MID_V = H / 2
+WALL_V = 455            # die Mauer (Bildzeile)
+MOUNTAIN_END = 480      # Mountain-Streifen südlich der Mauer
+BLACKFOREST_END = 690   # der Norden bis zur Eng
+ESSOS_PLAINS_U = 820    # östlich davon ist Essos Steppe/Wüste
+JUNGLE_V = 1300         # Sothoryos
 
-# Sumpf-Flecken: (Mitte x, Mitte y, Radius x, Radius y)
+# Westeros-Ausschnitt (für die Mauer)
+WESTEROS_U0, WESTEROS_U1 = 150, 515
+CASTLE_BLACK_U = 398
+
 SWAMPS = [
-    (306, 258, 15, 5),   # die Eng (Westeros)
-    (468, 300, 26, 12),  # Essos Mitte
-    (548, 292, 20, 10),
-    (505, 332, 18, 8),
-    (430, 318, 12, 6),
+    (305, 690, 34, 9),     # die Eng
+    (700, 955, 45, 24),    # die Sorrows am Rhoyne
+    (1010, 905, 40, 16),   # Essos Mitte
 ]
 
 COLORS = {
@@ -47,31 +53,17 @@ COLORS = {
     DEEPNORTH: (170, 210, 245), MISTLANDS: (110, 95, 140),
 }
 
-
-def classify_color(r, g, b, y):
-    """0 Wasser, 1 Eis, 2 Wüste/Steppe, 3 Grünland. Eis nur in Polnähe (sonst ist Helles Wüste)."""
-    light = (r + g + b) / 3
-    sat = max(r, g, b) - min(r, g, b)
-    if light > 185 and sat < 45 and (y < 175 or y > 480):
-        return 1
-    if light > 150:
-        return 3 if y > 470 else 2  # heller Dunst am Südrand von Sothoryos ist Dschungel, sonst Wüste
-    if light < 30 or (b >= g - 4 and r < g):
-        return 0
-    if r >= g + 4:
-        return 2
-    return 3
+UNKNOWN, WATER, LAND, FOREST = 255, 0, 1, 2
 
 
-# Meerenge zwischen Westeros und Essos (auf dem Bild nur eine schmale, flache Rinne)
-CHANNEL_X0, CHANNEL_X1, CHANNEL_Y0, CHANNEL_Y1 = 343, 363, 232, 342
-
-
-def in_channel(x, y):
-    if not (CHANNEL_Y0 <= y <= CHANNEL_Y1):
-        return False
-    wobble = 2 * math.sin(y * 0.11) + 1.2 * math.sin(y * 0.37 + 1)
-    return CHANNEL_X0 + wobble <= x <= CHANNEL_X1 + wobble
+def classify(r, g, b):
+    if max(r, g, b) < 90:
+        return UNKNOWN                      # Schrift, Linien
+    if b - r > 25 and b >= g:
+        return WATER
+    if g - r > 20 and g > b:
+        return FOREST
+    return LAND                             # weiß, grau (Gebirge), Straßen
 
 
 def swamp_at(x, y):
@@ -84,42 +76,47 @@ def swamp_at(x, y):
 
 
 def main():
-    src = Path(sys.argv[1])
-    rgb = src.read_bytes()
-    assert len(rgb) == W * H * 3, "falsche Bildgröße"
+    rgb = Path(sys.argv[1]).read_bytes()
+    assert len(rgb) == W * H * 3, f"falsche Bildgröße: {len(rgb)}"
 
     kind = bytearray(W * H)
     for i in range(W * H):
-        kind[i] = classify_color(rgb[3 * i], rgb[3 * i + 1], rgb[3 * i + 2], i // W)
+        kind[i] = classify(rgb[3 * i], rgb[3 * i + 1], rgb[3 * i + 2])
+    # Legende unten links ist kein Land
+    for y in range(1345, 1495):
+        for x in range(100, 390):
+            kind[y * W + x] = WATER
 
-    # Störpixel glätten: Mehrheit im 3x3-Feld (zweimal)
-    for _ in range(2):
+    # Schrift/Linien aus den Nachbarn auffüllen (Mehrheit), bis nichts Unbekanntes übrig ist
+    for _ in range(8):
+        unknown = [i for i in range(W * H) if kind[i] == UNKNOWN]
+        if not unknown:
+            break
         out = bytearray(kind)
-        for y in range(1, H - 1):
-            for x in range(1, W - 1):
-                counts = [0, 0, 0, 0]
-                for dy in (-1, 0, 1):
-                    row = (y + dy) * W
-                    for dx in (-1, 0, 1):
-                        counts[kind[row + x + dx]] += 1
-                best = max(range(4), key=lambda k: counts[k])
-                if counts[best] >= 5:
-                    out[y * W + x] = best
+        for i in unknown:
+            x, y = i % W, i // W
+            counts = {}
+            for dy in (-2, -1, 0, 1, 2):
+                yy = y + dy
+                if yy < 0 or yy >= H:
+                    continue
+                for dx in (-2, -1, 0, 1, 2):
+                    xx = x + dx
+                    if 0 <= xx < W:
+                        k = kind[yy * W + xx]
+                        if k != UNKNOWN:
+                            counts[k] = counts.get(k, 0) + 1
+            if counts:
+                out[i] = max(counts, key=counts.get)
         kind = out
+    for i in range(W * H):
+        if kind[i] == UNKNOWN:
+            kind[i] = WATER
 
-    # Eisrand oben/unten (Dunst) ist kein Land
-    for y in range(H):
-        if y < 152 or y > 575:
-            for x in range(W):
-                if y >= 140 and y < 152 and 265 < x < 335:
-                    continue  # Nordspitze von Westeros bleibt
-                if kind[y * W + x] != 0:
-                    kind[y * W + x] = 0
-
-    # sehr kleine Landsplitter entfernen (< 60 Pixel)
+    # kleine Splitter entfernen (Inseln < 40 Pixel)
     seen = bytearray(W * H)
     for start in range(W * H):
-        if kind[start] == 0 or seen[start]:
+        if kind[start] == WATER or seen[start]:
             continue
         stack, comp = [start], []
         seen[start] = 1
@@ -128,39 +125,71 @@ def main():
             comp.append(i)
             x, y = i % W, i // W
             for j in (i - 1 if x > 0 else -1, i + 1 if x < W - 1 else -1, i - W if y > 0 else -1, i + W if y < H - 1 else -1):
-                if j >= 0 and not seen[j] and kind[j] != 0:
+                if j >= 0 and not seen[j] and kind[j] != WATER:
                     seen[j] = 1
                     stack.append(j)
-        if len(comp) < 60:
+        if len(comp) < 40:
             for i in comp:
-                kind[i] = 0
+                kind[i] = WATER
+
+    # Unter der Mauer durchgehend Land: von der Schwarzen Festung aus nach Westen und Osten bis zur
+    # Küste des Festlands. Buchten/Flüsse bis 20 Pixel werden überbrückt, breitere Meeresrinnen nicht.
+    # Die Bucht östlich der Mauer (mit der kleinen Insel dahinter) wird Land, damit die Mauer bis
+    # zur Ostküste durchläuft und kein Wasser die Mauer unterbricht.
+    ecx, ecy, erx, ery = 466, 462, 44, 28
+    for y in range(ecy - ery - 6, ecy + ery + 7):
+        for x in range(ecx - erx - 6, ecx + erx + 7):
+            ang = math.atan2(y - ecy, x - ecx)
+            wob = 1 + 0.12 * math.sin(ang * 5 + 1.3) + 0.07 * math.sin(ang * 11)
+            if ((x - ecx) / erx) ** 2 + ((y - ecy) / ery) ** 2 < wob ** 2 and kind[y * W + x] == WATER:
+                kind[y * W + x] = LAND
+
+    row = [kind[WALL_V * W + u] != WATER for u in range(W)]
+
+    def extend(start, step):
+        u, last_land = start, start
+        while WESTEROS_U0 <= u < WESTEROS_U1:
+            if row[u]:
+                last_land = u
+            elif abs(u - last_land) > 20:
+                break
+            u += step
+        return last_land
+
+    if row[CASTLE_BLACK_U]:
+        u0, u1 = extend(CASTLE_BLACK_U, -1), extend(CASTLE_BLACK_U, 1)
+        for v in range(WALL_V - 7, WALL_V + 8):
+            for u in range(u0, u1 + 1):
+                if kind[v * W + u] == WATER:
+                    kind[v * W + u] = LAND
+        print(f"Mauer: Spalten {u0} bis {u1}")
 
     biome = bytearray(W * H)
     for y0 in range(H):
         for x in range(W):
             k = kind[y0 * W + x]
-            # wellige Klimagrenzen statt gerader Linien
-            y = y0 + 5 * math.sin(x * 0.045) + 3 * math.sin(x * 0.13 + 1.7) + 1.5 * math.sin(x * 0.37)
-            if k == 0:
+            # wellige Klimagrenzen (die Mauer selbst bleibt gerade)
+            wob = 9 * math.sin(x * 0.021) + 5 * math.sin(x * 0.067 + 1.7) + 2.5 * math.sin(x * 0.19)
+            y = y0 + wob
+            xw = x + 14 * math.sin(y0 * 0.017) + 6 * math.sin(y0 * 0.061 + 0.8)
+            if k == WATER:
                 b = OCEAN
-            elif k == 1:
-                b = OCEAN  # Polareis wird Meer; die Polkappen setzt die Mod selbst (viel kleiner)
-            elif y < WALL_V:
+            elif y0 < WALL_V:
                 b = DEEPNORTH
-            elif y < MOUNTAIN_END:
+            elif y0 < MOUNTAIN_END:
                 b = MOUNTAIN
-            elif k == 2:
-                b = PLAINS
             elif y < BLACKFOREST_END:
                 b = BLACKFOREST
-            elif y >= JUNGLE_START:
+            elif y >= JUNGLE_V and not (x > 1580 and y < 1430):
                 b = MISTLANDS
+            elif xw >= ESSOS_PLAINS_U and k != FOREST:
+                b = PLAINS
+            elif x > 290 and x < 520 and y > 985:
+                b = PLAINS  # Dorne ist Wüste
             else:
                 b = MEADOWS
             if b in (MEADOWS, PLAINS) and swamp_at(x, y0):
                 b = SWAMP
-            if in_channel(x, y0):
-                b = OCEAN
             biome[y0 * W + x] = b
 
     root = Path(__file__).resolve().parents[2]
@@ -169,13 +198,6 @@ def main():
         f.write(struct.pack("<HH", W, H))
         f.write(bytes(biome))
     print("Biom-Karte:", out, out.stat().st_size, "Bytes")
-
-    counts = [0] * 9
-    for v in biome:
-        counts[v] += 1
-    names = ["Ozean", "Meadows", "Swamp", "Mountain", "Black Forest", "Plains", "Ashlands", "Deep North", "Mistlands"]
-    for n, c in zip(names, counts):
-        print(f"  {n:13s} {100 * c / len(biome):5.1f} %")
 
     # Vorschau-PNG
     raw = bytearray()

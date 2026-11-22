@@ -18,6 +18,7 @@ namespace Breitengrade
 
             WorldScale.S = Active ? WorldScale.Clamp(Plugin.WorldScaleFactor.Value) : 1f;
             MinimapScale.Apply();
+            WaterShaderScale.ApplyAll();
             if (!Active) return;
 
             if (!Latitude.TryParseBounds(Plugin.BandBounds.Value, out var bounds))

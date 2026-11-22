@@ -22,6 +22,15 @@ namespace Breitengrade
             new Terminal.ConsoleCommand("bg_hier", "Breitengrade: Biom-Daten an deiner Position ins Log schreiben",
                 args => Report(args.Context),
                 false, false, false, false, false, false, null, false, false, false);
+            new Terminal.ConsoleCommand("bg_wasser", "Breitengrade: Einstellungen der Wasserfläche an deiner Position ins Log schreiben",
+                args => WaterReport(args.Context),
+                false, false, false, false, false, false, null, false, false, false);
+            new Terminal.ConsoleCommand("bg_pins", "Breitengrade: alle Kartenmarkierungen mit Koordinaten und Bodenhöhe",
+                args => MapTools.ListPins(args.Context),
+                false, false, false, false, false, false, null, false, false, false);
+            new Terminal.ConsoleCommand("bg_tp", "Breitengrade: Teleport  bg_tp X Z | bg_tp X Höhe Z | bg_tp Markierungsname",
+                args => MapTools.Teleport(args.Context, args.Args),
+                false, false, false, false, false, false, null, false, false, false);
             new Terminal.ConsoleCommand("bg_ausdauer", "Breitengrade: unendliche Ausdauer an/aus",
                 args =>
                 {
@@ -65,6 +74,54 @@ namespace Breitengrade
             string text = sb.ToString().TrimEnd();
             Plugin.Log.LogInfo(text);
             foreach (var line in text.Split('\n')) terminal?.AddString(line.TrimEnd());
+        }
+
+        static void WaterReport(Terminal terminal)
+        {
+            var player = Player.m_localPlayer;
+            if (player == null) { terminal?.AddString("Kein Spieler geladen."); return; }
+            var p = player.transform.position;
+            var sb = new StringBuilder();
+            sb.AppendLine($"[bg_wasser] Position ({p.x:0}, {p.y:0}, {p.z:0}), Abstand zur Weltmitte " +
+                          $"{Mathf.Sqrt(p.x * p.x + p.z * p.z):0} m (Wasser wird gezeichnet bis {10500f * WorldScale.S:0} m)");
+            WaterVolume best = null;
+            float bestD = float.MaxValue;
+            foreach (var w in WaterVolume.Instances)
+            {
+                if (w == null) continue;
+                float d = (w.transform.position - p).sqrMagnitude;
+                if (d < bestD) { bestD = d; best = w; }
+            }
+            if (best == null) sb.AppendLine("[bg_wasser] Keine Wasserfläche geladen.");
+            else
+            {
+                var r = best.m_waterSurface;
+                sb.AppendLine($"[bg_wasser] Wasserfläche bei {best.transform.position}, aktiv {best.gameObject.activeInHierarchy}, " +
+                              $"Renderer {(r != null ? r.enabled.ToString() : "fehlt")}, Tiefe hier {best.Depth(p):0.0}, " +
+                              $"Oberfläche {best.GetWaterSurface(p, 1f):0.0}, forceDepth {best.m_forceDepth}");
+                var mat = r != null ? r.sharedMaterial : null;
+                if (mat != null)
+                {
+                    var sh = mat.shader;
+                    sb.AppendLine($"[bg_wasser] Shader {sh.name}, Schlüsselwörter: {string.Join(" ", mat.shaderKeywords)}");
+                    for (int i = 0; i < sh.GetPropertyCount(); i++)
+                    {
+                        string name = sh.GetPropertyName(i);
+                        var type = sh.GetPropertyType(i);
+                        string val = type == UnityEngine.Rendering.ShaderPropertyType.Float || type == UnityEngine.Rendering.ShaderPropertyType.Range
+                            ? mat.GetFloat(name).ToString("0.###")
+                            : type == UnityEngine.Rendering.ShaderPropertyType.Vector ? mat.GetVector(name).ToString()
+                            : type == UnityEngine.Rendering.ShaderPropertyType.Color ? mat.GetColor(name).ToString() : type.ToString();
+                        sb.AppendLine($"[bg_wasser]   {name} = {val}");
+                    }
+                    var block = new MaterialPropertyBlock();
+                    r.GetPropertyBlock(block);
+                    sb.AppendLine($"[bg_wasser] Eigene Werte am Renderer: {(block.isEmpty ? "keine" : "ja")}");
+                }
+            }
+            string text = sb.ToString().TrimEnd();
+            Plugin.Log.LogInfo(text);
+            terminal?.AddString("Wasser-Daten ins Log geschrieben.");
         }
 
         static string Describe(BiomeSector s)

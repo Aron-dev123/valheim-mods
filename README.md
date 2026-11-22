@@ -1,3 +1,6 @@
+- Startpunkt und Magierturm liegen in der Mitte von Westeros. Die Orte haben (vorerst) keine
+  Portale, sondern sind auf der Karte mit dem Feuerstellen-Symbol markiert; hin kommt man mit
+  `bg_tp Ortsname`.
 # Valheim Mods
 
 Eigene Mods für Valheim, gebaut mit BepInEx und Harmony.
@@ -40,6 +43,11 @@ Ashlands → Plains → Meadows → Swamp → Mistlands → Black Forest → Mou
   bleiben normal groß. Eine neue Welt dauert beim Erstellen deutlich länger.
 - Konsolenbefehl `bg_hier` (F5): schreibt die Biom-Daten der eigenen Position ins Log.
 - `god` gibt zusätzlich unendliche Ausdauer, `bg_ausdauer` schaltet sie auch ohne God-Modus an/aus.
+- Große Karte: unter dem Biom-Namen stehen X, Z und die Bodenhöhe unter dem Mauszeiger.
+- `bg_tp X Z`, `bg_tp X Höhe Z` oder `bg_tp Markierungsname`: Teleport. `bg_pins` listet alle
+  Markierungen mit Koordinaten. Portal „Weltrand-Test“ am Start führt an den äußersten Landpunkt.
+- Weltgröße höchstens 1,55: Größer würde Valheims Objektraster (512 × 512 Felder à 64 m)
+  sprengen; dessen Speicherformat ist an mindestens acht Stellen fest darauf ausgelegt.
 - Leistungsprotokoll (`LeistungsProtokoll`): alle 15 Sekunden FPS, Objekte, Kreaturen und
   Geländeaufrufe im Log unter `[Leistung]`.
 - Magierhaus (`Magierhaus`): Auf einem hohen, steilen Podest in den Meadows (westlich vom
@@ -76,9 +84,20 @@ Biom-Karte von Planetos (Westeros, Essos, Sothoryos und die fernen Kontinente) a
 - Norden/Schnee → Deep North, Süden → Ashlands (Hauptinsel), Grasland → Meadows,
   nördliches Grasland → Black Forest, Wüste → Plains, Dschungel → Mistlands,
   Mountain als Streifen südlich der Mauer, ein paar Sümpfe in der Mitte (Essos, die Eng).
-- **Die Mauer**: ein sehr hoher, schmaler Wall quer über Westeros (`MauerHoehe`, Standard 260 m).
+- **Die Mauer**: ein sehr hoher, schmaler Wall quer über Westeros (`MauerHoehe`, Standard 260 m),
+  ohne Lücke von der West- bis zur Ostküste. Sie ist die Grenze: südlich Mountain, nördlich und
+  oben Deep North. Auf der Mauer wächst nichts, es erscheinen keine Kreaturen und keine Locations.
+- **Orte** (nach einer Karte mit Ortsnamen): an jedem benannten Ort entstehen passende Locations –
+  Meadows-Dörfer, Fuling-Lager in den Plains, Steinturm-Ruinen im Black Forest, Dvergr-Festungen
+  in den Mistlands, Dörfer des Nordens im Deep North, Sumpfhütten und Krypten im Swamp,
+  Steintürme, Steinkreise mit Treppe und verlassene Hütten am Mountain (Castle Black),
+  Festungen, verfallene Mauern und Dvergr-Türme in den Ashlands (Land of Fire). Große Orte bekommen mehrere nebeneinander
+  (normal 5, Hardhome 3 Dörfer, Winterfell 12 Turmruinen, Vaes Dothrak 10 Fuling-Lager,
+  Yeen 10 Dvergr-Festungen, King's Landing 8 Dörfer). Die Orte einer Welt werden in
+  `BepInEx/config/Breitengrade/orte_<Welt-ID>.txt` gemerkt, damit nichts doppelt entsteht.
+  Fehlende Location-Arten stehen im Log (`[Orte]`).
 - Startpunkt und Magierturm liegen in der Mitte von Westeros. Im Portalturm gibt es
-  benannte Portale (Winterfell, Königsmund, Braavos, Vaes Dothrak, Asshai, …) und eins
+  benannte Portale mit englischen Namen (Winterfell, King's Landing, Braavos, Vaes Dothrak, Asshai, …) und eins
   oben auf die Mauer.
 - Die Biom-Karte (`Breitengrade/Planetos.biome.gz`) wird mit
   `tools/PlanetosKarte/umwandeln.py` aus einer Fan-Karte erzeugt. Die Fan-Karte selbst

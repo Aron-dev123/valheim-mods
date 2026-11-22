@@ -530,6 +530,8 @@ namespace Breitengrade
                 }
                 return true;
             }
+            // Planetos: auf der Mauer entsteht nichts
+            if (Planetos.Enabled && Planetos.IsOnWall(pos.x, pos.z, location.m_exteriorRadius + 10f)) return false;
             if (!Plugin.MageHouse.Value) return true;
             float dx = pos.x - MageTower.Center.x, dz = pos.z - MageTower.Center.z;
             float r = MageTower.BaseRadius + 20f + location.m_exteriorRadius;

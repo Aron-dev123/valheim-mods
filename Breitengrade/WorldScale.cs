@@ -190,3 +190,67 @@ namespace Breitengrade
         }
     }
 }
+
+namespace Breitengrade
+{
+    /// <summary>
+    /// Der Wasser-Shader hat eigene Werte für die Weltgröße: Wasser wird nur bis _WaterEdge (10500 m)
+    /// gezeichnet, und das rote Ashlands-Wasser beginnt bei _AshlandsDistance/_AshlandsYOffset.
+    /// Bei größerer Welt werden diese Werte mitskaliert (in allen Wasser-Materialien und an jeder Wasserfläche).
+    /// </summary>
+    internal static class WaterShaderScale
+    {
+        static readonly int WaterEdge = UnityEngine.Shader.PropertyToID("_WaterEdge");
+        static readonly int AshDistance = UnityEngine.Shader.PropertyToID("_AshlandsDistance");
+        static readonly int AshOffset = UnityEngine.Shader.PropertyToID("_AshlandsYOffset");
+
+        public static void ApplyAll()
+        {
+            try
+            {
+                foreach (var mat in UnityEngine.Resources.FindObjectsOfTypeAll<UnityEngine.Material>())
+                    if (mat != null && mat.shader != null && mat.HasProperty(WaterEdge)) Apply(mat);
+                foreach (var w in WaterVolume.Instances)
+                    if (w != null) ApplyTo(w);
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning("[Wasser] " + e.Message);
+            }
+        }
+
+        static void Apply(UnityEngine.Material mat)
+        {
+            float s = WorldScale.S;
+            mat.SetFloat(WaterEdge, 10500f * s);
+            if (mat.HasProperty(AshDistance)) mat.SetFloat(AshDistance, 12000f * s);
+            if (mat.HasProperty(AshOffset)) mat.SetFloat(AshOffset, 4000f * s);
+        }
+
+        public static void ApplyTo(WaterVolume w)
+        {
+            var r = w.m_waterSurface;
+            if (r == null) return;
+            if (r.sharedMaterial != null && r.sharedMaterial.HasProperty(WaterEdge)) Apply(r.sharedMaterial);
+            var block = new UnityEngine.MaterialPropertyBlock();
+            r.GetPropertyBlock(block);
+            float s = WorldScale.S;
+            block.SetFloat(WaterEdge, 10500f * s);
+            block.SetFloat(AshDistance, 12000f * s);
+            block.SetFloat(AshOffset, 4000f * s);
+            r.SetPropertyBlock(block);
+        }
+    }
+
+    [HarmonyPatch(typeof(WaterVolume), "SetupMaterial")]
+    static class Patch_WaterSetupMaterial
+    {
+        static void Postfix(WaterVolume __instance) => WaterShaderScale.ApplyTo(__instance);
+    }
+
+    [HarmonyPatch(typeof(WaterVolume), nameof(WaterVolume.UpdateMaterials))]
+    static class Patch_WaterUpdateMaterials
+    {
+        static void Postfix(WaterVolume __instance) => WaterShaderScale.ApplyTo(__instance);
+    }
+}

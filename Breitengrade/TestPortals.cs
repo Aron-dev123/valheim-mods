@@ -55,8 +55,41 @@ namespace Breitengrade
             {
                 Vector3 temple = FindStartTemple();
                 ClearAreas.Add((temple, ClearingRadius));
+                if (Planetos.Enabled)
+                {
+                    // Auf der Mauer wächst nichts (keine Bäume, Steine, Büsche)
+                    foreach (var (wx, wz) in Planetos.WallPoints(25f))
+                        ClearAreas.Add((new Vector3(wx, 0f, wz), 40f));
+                }
 
                 var existing = FindOurPortals();
+                if (Planetos.Enabled)
+                {
+                    // Orte haben (vorerst) keine Portale mehr: alte Ort-Portale entfernen,
+                    // auch die Gegenstücke im Magierturm. Die Orte sind auf der Karte markiert (bg_tp).
+                    var placeTags = PlaceTags();
+                    int removed = 0;
+                    foreach (var z in existing.Where(z => placeTags.Contains(z.GetString(ZDOVars.s_tag, ""))).ToList())
+                    {
+                        existing.Remove(z);
+                        ZDOMan.instance.DestroyZDO(z);
+                        removed++;
+                    }
+                    if (removed > 0) Plugin.Log.LogInfo($"[Portale] {removed} Portale zu Orten entfernt.");
+                    int renamed = 0;
+                    foreach (var z in existing)
+                    {
+                        string tag = z.GetString(ZDOVars.s_tag, "");
+                        if (!Planetos.OldNames.TryGetValue(tag, out var en)) continue;
+                        z.Set(ZDOVars.s_tag, en);
+                        renamed++;
+                    }
+                    if (renamed > 0)
+                    {
+                        Plugin.Log.LogInfo($"[Portale] {renamed} Portale auf englische Namen umbenannt.");
+                        Game.instance?.ConnectPortals();
+                    }
+                }
                 foreach (var z in existing)
                 {
                     var p = z.GetPosition();
@@ -68,6 +101,7 @@ namespace Breitengrade
                 if (existing.Count > 0)
                 {
                     Plugin.Log.LogInfo($"[Portale] {existing.Count} Portale vorhanden, nichts neu gebaut.");
+                    if (ZNet.instance.IsServer() && Plugin.TestPortalsEnabled.Value) EnsureFarPortal(temple, existing);
                     if (Plugin.MageHouse.Value)
                     {
                         ClearAreas.Add((MageTower.Center, MageTower.TopRadius + 15f));
@@ -78,10 +112,20 @@ namespace Breitengrade
 
                 if (!ZNet.instance.IsServer() || !Plugin.TestPortalsEnabled.Value) return;
                 Build(temple, existing);
+                EnsureFarPortal(temple, existing);
             }
             catch (Exception e)
             {
                 Plugin.Log.LogError("[Portale] Fehler: " + e);
+            }
+            finally
+            {
+                try
+                {
+                    if (Planetos.Enabled && ZNet.instance.IsServer())
+                        PointsOfInterest.Place(s_destinations.Select(d => d.pos).ToList());
+                }
+                catch (Exception e) { Plugin.Log.LogError("[Orte] Fehler: " + e); }
             }
         }
 
@@ -116,23 +160,6 @@ namespace Breitengrade
             var outer = new List<(string name, Vector3 pos)>();
             var t0 = DateTime.Now;
 
-            if (Planetos.Enabled)
-            {
-                foreach (var place in Planetos.Places)
-                {
-                    if (haveTags.Contains(place.name)) continue;
-                    Planetos.FromPixel(place.u, place.v, out float px, out float pz);
-                    if (FindNear(px, pz, place.biome, 2500f * WorldScale.S, out var pos)) inner.Add((place.name, pos));
-                    else Plugin.Log.LogWarning($"[Portale] Keine gute Stelle für {place.name} gefunden.");
-                }
-                // Oben auf der Mauer
-                if (!haveTags.Contains("Die Mauer"))
-                {
-                    Planetos.WallPoint(312f, out float wx, out float wz);
-                    float top = WorldGenerator.instance.GetHeight(wx, wz);
-                    inner.Add(("Die Mauer", new Vector3(wx, top + 0.05f, wz)));
-                }
-            }
             // Innerer Ring: ein Portal je Biom (Mitte des Bands) plus die beiden Inselhälften.
             for (int i = 0; i < Latitude.BandBiomes.Length && !Planetos.Enabled; i++)
             {
@@ -194,7 +221,49 @@ namespace Breitengrade
             Plugin.Log.LogInfo($"[Portale] {all.Count} Ziele aufgestellt (Suche {(DateTime.Now - t0).TotalSeconds:0.0} s).");
         }
 
+        /// <summary>Portal-Namen der Planetos-Orte (auch frühere deutsche Namen und die Mauer).</summary>
+        static HashSet<string> PlaceTags()
+        {
+            var set = new HashSet<string>(Planetos.Places.Select(p => p.name));
+            set.Add("The Wall");
+            foreach (var kv in Planetos.OldNames) { set.Add(kv.Key); set.Add(kv.Value); }
+            return set;
+        }
+
         static void SpawnPortalWithYaw(Vector3 pos, float yaw, string tag) => SpawnPortal(pos, yaw, tag);
+
+        const string FarTag = "Weltrand-Test";
+
+        /// <summary>
+        /// Portal am Startpunkt zu einem Landpunkt möglichst weit draußen (zum Testen von Lag und
+        /// Darstellung am Weltrand). Wird auch in schon erstellten Welten nachgerüstet.
+        /// </summary>
+        static void EnsureFarPortal(Vector3 temple, List<ZDO> existing)
+        {
+            if (existing.Any(z => z.GetString(ZDOVars.s_tag, "") == FarTag)) return;
+            float edge = 10000f * WorldScale.S;
+            Vector3 best = Vector3.zero;
+            float bestDist = 0f;
+            for (float frac = 0.95f; frac >= 0.6f && bestDist == 0f; frac -= 0.05f)
+            for (int a = 0; a < 24; a++)
+            {
+                float ang = a * 15f * Mathf.Deg2Rad;
+                float x = Mathf.Cos(ang) * edge * frac, z = Mathf.Sin(ang) * edge * frac;
+                int biome = Latitude.GetBiome(x, z);
+                if (biome == Latitude.Ocean || Latitude.CoastDistance(x, z) > -100f) continue;
+                if (!FindNear(x, z, biome, 600f, out var pos)) continue;
+                float d = Flat(pos).magnitude;
+                if (d > bestDist) { bestDist = d; best = pos; }
+            }
+            if (bestDist == 0f) { Plugin.Log.LogWarning("[Portale] Kein Landpunkt am Weltrand gefunden."); return; }
+            if (!FindRingSpot(temple, 30f, 14f, out Vector3 home, out float yaw))
+                home = temple + new Vector3(12f, 0f, 7f);
+            SpawnPortal(home, yaw, FarTag);
+            SpawnPortal(best, 0f, FarTag);
+            ClearAreas.Add((best, 8f));
+            s_destinations.Add((FarTag, best));
+            Plugin.Log.LogInfo($"[Portale] {FarTag}: Ziel bei {Fmt(best)}, {bestDist:0} m von der Weltmitte.");
+        }
 
         /// <summary>Stellt Portale gleichmäßig in einen Ring um den Start, alle mit Blick zur Mitte.</summary>
         static void PlaceRing(Vector3 temple, List<ZDO> existing, List<(string name, Vector3 pos)> targets, float radius)
@@ -262,13 +331,27 @@ namespace Breitengrade
         /// <summary>Markiert alle Portal-Ziele auf der Karte (ohne doppelte Markierungen).</summary>
         static void TryAddPins()
         {
-            if (s_pinsDone || !Plugin.PortalPins.Value || s_destinations.Count == 0) return;
+            if (s_pinsDone || !Plugin.PortalPins.Value) return;
+            if (s_destinations.Count == 0 && !(Planetos.Enabled && PointsOfInterest.PinPositions.Count > 0)) return;
             if (Player.m_localPlayer == null || Minimap.instance == null) return;
             s_pinsDone = true;
             try
             {
                 var pins = Traverse.Create(Minimap.instance).Field("m_pins").GetValue<List<Minimap.PinData>>();
                 int added = 0;
+                if (pins != null && Planetos.Enabled)
+                {
+                    // alte Portal-Markierungen der Orte weg, stattdessen Feuerstellen-Symbol je Ort
+                    var placeTags = PlaceTags();
+                    foreach (var old in pins.Where(p => p.m_type == Minimap.PinType.Icon4 && placeTags.Contains(p.m_name)).ToList())
+                        Minimap.instance.RemovePin(old);
+                    foreach (var kv in PointsOfInterest.PinPositions)
+                    {
+                        if (pins.Any(p => p.m_name == kv.Key && p.m_type == Minimap.PinType.Icon0)) continue;
+                        Minimap.instance.AddPin(kv.Value, Minimap.PinType.Icon0, kv.Key, true, false, 0L, default);
+                        added++;
+                    }
+                }
                 foreach (var (name, pos) in s_destinations)
                 {
                     if (pins != null && pins.Any(p => p.m_name == name && Flat(p.m_pos - pos).magnitude < 10f)) continue;
@@ -502,7 +585,6 @@ namespace Breitengrade
     static class Patch_SpawnPlaza
     {
         const float FlatRadius = 100f, FadeRadius = 160f;
-        static readonly object s_lock = new object();
         static float s_plazaHeight = float.NaN;
         [ThreadStatic] static bool t_inside;
 
@@ -511,7 +593,7 @@ namespace Breitengrade
 
         public static void Reset()
         {
-            lock (s_lock) s_plazaHeight = float.NaN;
+            s_plazaHeight = float.NaN;
             Center = Vector3.zero;
             if (Planetos.Enabled)
             {
@@ -539,28 +621,34 @@ namespace Breitengrade
             __result = Mathf.Lerp(plaza, __result, t);
         }
 
-        /// <summary>Höhe der Ebene: Gelände in der Weltmitte ohne Einebnung, mindestens 6 m über Wasser.</summary>
+        /// <summary>
+        /// Höhe der Ebene: Gelände an der Platzmitte ohne Einebnung, mindestens 6 m über Wasser.
+        /// Bewusst OHNE Sperre: Valheim berechnet Gelände in mehreren Threads und sperrt dabei selbst
+        /// (z. B. für Flüsse). Eine eigene Sperre um diese Berechnung kann sich mit Valheims Sperre
+        /// gegenseitig blockieren (Deadlock, das Spiel friert ein). Rechnen zwei Threads gleichzeitig,
+        /// kommt bei beiden dasselbe heraus.
+        /// </summary>
         static float PlazaHeight(WorldGenerator wg)
         {
-            lock (s_lock)
+            float cached = s_plazaHeight;
+            if (!float.IsNaN(cached)) return cached;
+            float result;
+            t_inside = true;
+            try
             {
-                if (!float.IsNaN(s_plazaHeight)) return s_plazaHeight;
-                t_inside = true;
-                try
+                float sum = 0f;
+                int n = 0;
+                for (float x = -40f; x <= 40f; x += 20f)
+                for (float z = -40f; z <= 40f; z += 20f)
                 {
-                    float sum = 0f;
-                    int n = 0;
-                    for (float x = -40f; x <= 40f; x += 20f)
-                    for (float z = -40f; z <= 40f; z += 20f)
-                    {
-                        sum += wg.GetBiomeHeight(Heightmap.Biome.Meadows, Center.x + x, Center.z + z, out Color _, false, false);
-                        n++;
-                    }
-                    s_plazaHeight = Math.Max(36f, sum / n);
+                    sum += wg.GetBiomeHeight(Heightmap.Biome.Meadows, Center.x + x, Center.z + z, out Color _, false, false);
+                    n++;
                 }
-                finally { t_inside = false; }
-                return s_plazaHeight;
+                result = Math.Max(36f, sum / n);
             }
+            finally { t_inside = false; }
+            s_plazaHeight = result;
+            return result;
         }
     }
 }
