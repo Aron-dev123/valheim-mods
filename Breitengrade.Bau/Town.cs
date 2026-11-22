@@ -474,13 +474,11 @@ namespace Breitengrade.Bau
             var uk = upper ?? k;
             if (levels > 1)
             {
-                if (uk.Floor != null) Tiles(new Vector3(p.x, p.y + lh, p.z), w, d, p.y + lh, uk.Floor);
                 Box(new Vector3(p.x, p.y + lh, p.z), w, d, p.y + lh, levels - 1, uk, door: false, pitched: pitched, merlons: !pitched);
             }
             else if (upper != null && pitched)
                 Roof(p, Snap(w, k.Wall.Width), Snap(d, k.Wall.Width), p.y + lh, uk);
             Windows(p, w, d, p.y, levels, k, uk);
-            Furnish2(p, w, d, p.y, levels, lh, k);
             // Kleinigkeiten vor dem Haus
             double r = s_rng.NextDouble();
             var front = new Vector3(p.x, p.y, p.z - d / 2f - 1.1f);
@@ -494,6 +492,7 @@ namespace Breitengrade.Bau
         /// <summary>Fensterläden an den Außenwänden (in jedem Stockwerk, nicht über der Tür).</summary>
         static void Windows(Vector3 p, float w, float d, float y0, int levels, Kit k, Kit uk)
         {
+            // Nur auf der Straßenseite (lokal Süd): dort sieht man sie, hinten und seitlich nicht
             var shutter = Pick("wood_window");
             if (shutter == null || s_ruin > 0.25f) return;
             float lh = LevelHeight(k);
@@ -502,23 +501,13 @@ namespace Breitengrade.Bau
                 var kit = lv == 0 ? k : uk;
                 float ww = kit.Wall.Width, sw = Snap(w, ww), sd = Snap(d, ww);
                 float y = y0 + lv * lh + 1.6f;
-                float t = 0.28f; // vor der Wand
                 int nx = Math.Max(1, (int)Math.Round(sw / ww));
                 for (int i = 0; i < nx; i++)
                 {
-                    float o = -sw / 2f + ww * (i + 0.5f);
                     if (lv == 0 && i == nx / 2) continue; // Tür
-                    if (i % 2 == 1 && nx > 2) continue;
-                    Put(shutter, new Vector3(p.x + o, y, p.z - sd / 2f - t), 0f, 0.5f);
-                    if (lv > 0 || i % 2 == 0) Put(shutter, new Vector3(p.x + o, y, p.z + sd / 2f + t), 180f, 0.5f);
-                }
-                int nz = Math.Max(1, (int)Math.Round(sd / ww));
-                for (int i = 0; i < nz; i++)
-                {
-                    if (i % 2 == 1) continue;
-                    float o = -sd / 2f + ww * (i + 0.5f);
-                    Put(shutter, new Vector3(p.x + sw / 2f + t, y, p.z + o), 270f, 0.5f);
-                    Put(shutter, new Vector3(p.x - sw / 2f - t, y, p.z + o), 90f, 0.5f);
+                    if (nx > 2 && i % 2 == 1) continue;
+                    float o = -sw / 2f + ww * (i + 0.5f);
+                    Put(shutter, new Vector3(p.x + o, y, p.z - sd / 2f - 0.28f), 0f, 0.5f);
                 }
             }
         }

@@ -147,15 +147,12 @@ namespace Breitengrade.Bau
             switch (m)
             {
                 case Mat.Wood:
-                    k.Corner = PickAny("wood_pole2", "wood_pole");
                     k.Door = Pick("wood_gate"); k.DoorTop = Pick("wood_wall_half");
                     break;
                 case Mat.Dark:
-                    k.Corner = PickAny("darkwood_pole", "wood_pole2");
                     k.Door = Pick("wood_gate"); k.DoorTop = Pick("wood_wall_half");
                     break;
                 case Mat.Marble:
-                    k.Corner = PickAny("blackmarble_column_1");
                     k.Door = Pick("darkwood_gate");
                     break;
                 case Mat.Grausten:
