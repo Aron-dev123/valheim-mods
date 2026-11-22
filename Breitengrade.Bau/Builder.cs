@@ -937,8 +937,20 @@ namespace Breitengrade.Bau
             side == 0 ? (0f, -1f) : side == 1 ? (0f, 1f) : side == 2 ? (1f, 0f) : (-1f, 0f);
 
         /// <summary>Tür im offenen Wandstück; bei breiten Wandstücken (Stein) schmale Füllteile daneben.</summary>
-        static void Door(Vector3 c, float w, float d, float y0, int side, Kit k)
+        static void Door(Vector3 c, float w, float d, float y0, int side, Kit k, float wallHeight = 4f)
         {
+            // Niedrige Hütten (Wand unter 4 m): kleine Holztür statt großem Tor
+            if (wallHeight < 3.9f)
+            {
+                var (sdx, sdz) = SideDir(side);
+                bool ax = side < 2;
+                float l = ax ? w : d;
+                int nn = Math.Max(1, (int)Math.Round(l / k.Wall.Width));
+                float sg = l / nn, oo = -l / 2f + sg * (nn / 2 + 0.5f);
+                var dp = ax ? new Vector3(c.x + oo, y0, c.z + sdz * d / 2f) : new Vector3(c.x + sdx * w / 2f, y0, c.z + oo);
+                if (s_ruin <= 0.3f) DoorPiece(dp, ax ? (sdz < 0 ? 0f : 180f) : (sdx > 0 ? 270f : 90f));
+                return;
+            }
             var wall = k.Wall;
             bool alongX = side < 2;
             float len = alongX ? w : d;
@@ -1199,7 +1211,7 @@ namespace Breitengrade.Bau
                 for (int sd = 0; sd < 4; sd++) Side(c, w, d, y, sd, wall, doorRow && sd == doorSide, frac);
             }
             CornerPosts(c, w, d, y0, rows * wall.Height, k);
-            if (door) Door(c, w, d, y0, doorSide, k);
+            if (door) Door(c, w, d, y0, doorSide, k, rows * wall.Height);
             float topY = y0 + rows * wall.Height;
             if (pitched && k.Roof != null) Roof(c, w, d, topY, k);
             else

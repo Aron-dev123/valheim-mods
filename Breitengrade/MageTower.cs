@@ -547,6 +547,8 @@ namespace Breitengrade
                 }
                 return true;
             }
+            // Planetos: in Städten entsteht nichts (Händler, Bosse und Dungeons werden vor die Stadt verlegt)
+            if (Planetos.Enabled && CityBuilder.InCity(pos.x, pos.z, location.m_exteriorRadius + PointsOfInterest.PlateauFade)) return false;
             // Planetos: auf der Mauer entsteht nichts
             if (Planetos.Enabled && Planetos.IsOnWall(pos.x, pos.z, location.m_exteriorRadius + 10f)) return false;
             if (!Plugin.MageHouse.Value) return true;

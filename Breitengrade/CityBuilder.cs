@@ -95,10 +95,10 @@ namespace Breitengrade
                     continue;
                 }
                 s_plans.Add(new Plan { Name = place.name, X = site.x, Z = site.z, R = R, H = h });
-                ClearVanilla(zs, site, R + PointsOfInterest.PlateauFade);
                 changed = true;
             }
             if (changed) SavePlans();
+            ClearCityLocations(zs);
 
             RoadNet.Plan(s_plans, SaveFile().Replace("staedte_", "strassen_"));
             RefreshCityLayout();
@@ -194,28 +194,77 @@ namespace Breitengrade
         }
 
         /// <summary>Noch nicht gebaute, häufige Valheim-Locations im Stadtgebiet entfernen.</summary>
-        static void ClearVanilla(ZoneSystem zs, Vector3 center, float radius)
+        static readonly System.Reflection.MethodInfo s_register = HarmonyLib.AccessTools.Method(typeof(ZoneSystem), "RegisterLocation");
+
+        /// <summary>Liegt der Punkt in einer Stadt (Radius + Rand)?</summary>
+        public static bool InCity(float x, float z, float margin = 0f)
         {
-            var remove = new List<Vector2s>();
-            foreach (var kv in zs.m_locationInstances)
+            foreach (var p in s_plans)
+            {
+                float r = p.R + margin, dx = x - p.X, dz = z - p.Z;
+                if (dx * dx + dz * dz < r * r) return true;
+            }
+            return false;
+        }
+
+        static bool Important(ZoneSystem.ZoneLocation l)
+        {
+            string n = l.m_prefabName ?? "";
+            return l.m_prioritized || l.m_unique || l.m_quantity < 15 ||
+                   n.Contains("Vendor") || n.Contains("Hildir") || n.Contains("BogWitch") || n.Contains("Crypt") ||
+                   n.Contains("Cave") || n.Contains("Dungeon") || n.Contains("DvergrTown") || n.Contains("Morgen");
+        }
+
+        /// <summary>
+        /// Stadtgebiete frei machen: Händler, Bosse, Dungeons und andere wichtige Orte werden vor die Stadt
+        /// verlegt, alles andere (Ruinen, Steinkreise …) entfernt. Nur noch nicht gebaute Orte.
+        /// </summary>
+        static void ClearCityLocations(ZoneSystem zs)
+        {
+            var gen = HarmonyLib.AccessTools.Method(typeof(ZoneSystem), "IsZoneGenerated");
+            var hits = zs.m_locationInstances.Where(kv =>
+            {
+                var l = kv.Value.m_location;
+                if (kv.Value.m_placed || l == null || l.m_prefabName == "StartTemple") return false;
+                var pos = kv.Value.m_position;
+                return InCity(pos.x, pos.z, l.m_exteriorRadius + PointsOfInterest.PlateauFade);
+            }).ToList();
+            int moved = 0, removed = 0;
+            foreach (var kv in hits)
             {
                 var li = kv.Value;
-                var l = li.m_location;
-                if (li.m_placed || l == null) continue;
-                if (Flat(li.m_position - center).magnitude > radius + l.m_exteriorRadius) continue;
-                if (l.m_prioritized || l.m_unique || l.m_quantity < 15) continue;
-                string n = l.m_prefabName ?? "";
-                if (n.Contains("Vendor") || n.Contains("Hildir") || n.Contains("BogWitch") || n.Contains("StartTemple")) continue;
-                remove.Add(kv.Key);
+                RemoveInstance(zs, kv.Key, li);
+                if (!Important(li.m_location)) { removed++; continue; }
+                // neuen Platz außerhalb der Stadt suchen
+                var plan = s_plans.OrderBy(p => (p.X - li.m_position.x) * (p.X - li.m_position.x) + (p.Z - li.m_position.z) * (p.Z - li.m_position.z)).First();
+                bool ok = false;
+                for (float d = plan.R + PointsOfInterest.PlateauFade + li.m_location.m_exteriorRadius + 20f; d < plan.R + 900f && !ok; d += 40f)
+                    for (int a = 0; a < 24 && !ok; a++)
+                    {
+                        float ang = a * Mathf.PI / 12f;
+                        var q = new Vector3(plan.X + Mathf.Cos(ang) * d, 0f, plan.Z + Mathf.Sin(ang) * d);
+                        if (InCity(q.x, q.z, li.m_location.m_exteriorRadius + PointsOfInterest.PlateauFade)) continue;
+                        if (Latitude.CoastDistance(q.x, q.z) > -30f || Planetos.IsOnWall(q.x, q.z, 40f)) continue;
+                        if (li.m_location.m_biome != Heightmap.Biome.None && (WorldGenerator.instance.GetBiome(q) & li.m_location.m_biome) == 0) continue;
+                        var zone = ZoneSystem.GetZone(q);
+                        if (zs.m_locationInstances.ContainsKey(zone)) continue;
+                        if (gen != null && (bool)gen.Invoke(zs, new object[] { zone })) continue;
+                        q.y = WorldGenerator.instance.GetHeight(q.x, q.z);
+                        s_register.Invoke(zs, new object[] { li.m_location, q, false });
+                        ok = zs.m_locationInstances.TryGetValue(zone, out var nl) && nl.m_location == li.m_location;
+                    }
+                if (ok) moved++;
+                else Plugin.Log.LogWarning($"[Städte] {li.m_location.m_prefabName}: kein Platz außerhalb der Stadt gefunden.");
             }
-            foreach (var key in remove)
-            {
-                var li = zs.m_locationInstances[key];
-                zs.m_locationInstances.Remove(key);
-                foreach (var list in zs.m_locationIDCache.Values) list.RemoveAll(x => x.m_position == li.m_position && x.m_location == li.m_location);
-                foreach (var list in zs.m_locationGroupCache.Values) list.RemoveAll(x => x.m_position == li.m_position && x.m_location == li.m_location);
-                foreach (var list in zs.m_locationMaxGroupCache.Values) list.RemoveAll(x => x.m_position == li.m_position && x.m_location == li.m_location);
-            }
+            if (hits.Count > 0) Plugin.Log.LogInfo($"[Städte] Stadtgebiete frei gemacht: {moved} Orte verlegt (Händler, Bosse, Dungeons …), {removed} entfernt.");
+        }
+
+        static void RemoveInstance(ZoneSystem zs, Vector2s key, ZoneSystem.LocationInstance li)
+        {
+            zs.m_locationInstances.Remove(key);
+            foreach (var list in zs.m_locationIDCache.Values) list.RemoveAll(x => x.m_position == li.m_position && x.m_location == li.m_location);
+            foreach (var list in zs.m_locationGroupCache.Values) list.RemoveAll(x => x.m_position == li.m_position && x.m_location == li.m_location);
+            foreach (var list in zs.m_locationMaxGroupCache.Values) list.RemoveAll(x => x.m_position == li.m_position && x.m_location == li.m_location);
         }
 
         /// <summary>Baut die nächste Stadt aus der Warteschlange (eine je Aufruf).</summary>

@@ -560,7 +560,9 @@ namespace Breitengrade
     {
         static bool Prefix(ref Vector3 spawnPoint, ref bool __result)
         {
-            if (!State.Active || !Planetos.Enabled || !Planetos.IsOnWall(spawnPoint.x, spawnPoint.z, 8f)) return true;
+            // keine Gegner auf der Mauer und in den Städten
+            if (!State.Active || !Planetos.Enabled) return true;
+            if (!Planetos.IsOnWall(spawnPoint.x, spawnPoint.z, 8f) && !CityBuilder.InCity(spawnPoint.x, spawnPoint.z, 25f)) return true;
             __result = false;
             return false;
         }
