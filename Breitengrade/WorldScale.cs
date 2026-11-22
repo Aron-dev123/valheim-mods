@@ -208,10 +208,21 @@ namespace Breitengrade
         {
             try
             {
+                // Alle Materialien mit diesen Werten (Wasser, aber auch Gelände/Meeresboden und Effekte),
+                // dazu die globalen Shader-Werte: sonst gilt irgendwo noch der normale Ashlands-Ring
+                // und das Meer wird weit im Norden schon rot und kochend.
+                float s = WorldScale.S;
+                UnityEngine.Shader.SetGlobalFloat(WaterEdge, 10500f * s);
+                UnityEngine.Shader.SetGlobalFloat(AshDistance, 12000f * s);
+                UnityEngine.Shader.SetGlobalFloat(AshOffset, 4000f * s);
+                int n = 0;
                 foreach (var mat in UnityEngine.Resources.FindObjectsOfTypeAll<UnityEngine.Material>())
-                    if (mat != null && mat.shader != null && mat.HasProperty(WaterEdge)) Apply(mat);
+                    if (mat != null && mat.shader != null &&
+                        (mat.HasProperty(WaterEdge) || mat.HasProperty(AshDistance) || mat.HasProperty(AshOffset)))
+                    { Apply(mat); n++; }
                 foreach (var w in WaterVolume.Instances)
                     if (w != null) ApplyTo(w);
+                Plugin.Log.LogInfo($"[Wasser] Ashlands-Ring und Wasserrand für {n} Materialien angepasst (Faktor {s:0.##}).");
             }
             catch (Exception e)
             {
@@ -219,10 +230,11 @@ namespace Breitengrade
             }
         }
 
-        static void Apply(UnityEngine.Material mat)
+        public static void Apply(UnityEngine.Material mat)
         {
+            if (mat == null) return;
             float s = WorldScale.S;
-            mat.SetFloat(WaterEdge, 10500f * s);
+            if (mat.HasProperty(WaterEdge)) mat.SetFloat(WaterEdge, 10500f * s);
             if (mat.HasProperty(AshDistance)) mat.SetFloat(AshDistance, 12000f * s);
             if (mat.HasProperty(AshOffset)) mat.SetFloat(AshOffset, 4000f * s);
         }

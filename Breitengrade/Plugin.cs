@@ -11,7 +11,7 @@ namespace Breitengrade
     {
         public const string Guid = "aron.valheim.breitengrade";
         public const string ModName = "Breitengrade";
-        public const string Version = "1.4.0";
+        public const string Version = "1.6.1";
 
         internal static ManualLogSource Log;
         internal static ConfigEntry<string> WorldName;

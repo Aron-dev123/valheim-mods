@@ -1,5 +1,5 @@
 - Startpunkt und Magierturm liegen in der Mitte von Westeros. Die Orte haben (vorerst) keine
-  Portale, sondern sind auf der Karte mit dem Feuerstellen-Symbol markiert; hin kommt man mit
+  Portale, sondern sind auf der Karte mit dem Haus-Symbol markiert; hin kommt man mit
   `bg_tp Ortsname`.
 # Valheim Mods
 
@@ -87,18 +87,19 @@ Biom-Karte von Planetos (Westeros, Essos, Sothoryos und die fernen Kontinente) a
 - **Die Mauer**: ein sehr hoher, schmaler Wall quer über Westeros (`MauerHoehe`, Standard 260 m),
   ohne Lücke von der West- bis zur Ostküste. Sie ist die Grenze: südlich Mountain, nördlich und
   oben Deep North. Auf der Mauer wächst nichts, es erscheinen keine Kreaturen und keine Locations.
-- **Orte** (nach einer Karte mit Ortsnamen): an jedem benannten Ort entstehen passende Locations –
-  Meadows-Dörfer, Fuling-Lager in den Plains, Steinturm-Ruinen im Black Forest, Dvergr-Festungen
-  in den Mistlands, Dörfer des Nordens im Deep North, Sumpfhütten und Krypten im Swamp,
-  Steintürme, Steinkreise mit Treppe und verlassene Hütten am Mountain (Castle Black),
-  Festungen, verfallene Mauern und Dvergr-Türme in den Ashlands (Land of Fire). Große Orte bekommen mehrere nebeneinander
-  (normal 5, Hardhome 3 Dörfer, Winterfell 12 Turmruinen, Vaes Dothrak 10 Fuling-Lager,
-  Yeen 10 Dvergr-Festungen, King's Landing 8 Dörfer). Die Orte einer Welt werden in
-  `BepInEx/config/Breitengrade/orte_<Welt-ID>.txt` gemerkt, damit nichts doppelt entsteht.
+- **Städte** an den Orten (nach einer Karte mit Ortsnamen), gebaut aus Valheim-Locations passend
+  zum Biom: Meadows-Dörfer, Fuling-Lager (Plains), Turmruinen (Black Forest), Dvergr-Türme
+  (Mistlands), Dörfer des Nordens (Deep North), Hütten und Krypten (Swamp), Ruinen mit Skeletten,
+  Steinkreise und Hütten (Mountain, Castle Black), Festungen, Ruinen und Dvergr-Türme (Ashlands).
+  Valheim erlaubt nur eine Location je 64-m-Zone; die Mod baut die Gebäude deshalb selbst, wenn
+  die Zone entsteht, und kann sie so dicht wie in einem Dorf setzen (die Außenbereiche berühren
+  sich, dazwischen bleibt eine Gasse). Alle Städte haben
+  etwa die Fläche der Meadows-Städte (normal 8 Dörfer, große Orte bis 16) – kleine Gebäude gibt es
+  entsprechend öfter (höchstens 30). Jede Stadt steht auf einer eingeebneten Fläche ohne Bäume
+  und Steine; andere, noch nicht gebaute Valheim-Locations im Stadtgebiet werden entfernt (keine
+  Bosse, Händler oder einzigartigen Orte). Die Gebäude einer Welt stehen in
+  `BepInEx/config/Breitengrade/orte_<Welt-ID>.txt`. Auf der Karte hat jede Stadt ein Haus-Symbol.
   Fehlende Location-Arten stehen im Log (`[Orte]`).
-- Startpunkt und Magierturm liegen in der Mitte von Westeros. Im Portalturm gibt es
-  benannte Portale mit englischen Namen (Winterfell, King's Landing, Braavos, Vaes Dothrak, Asshai, …) und eins
-  oben auf die Mauer.
 - Die Biom-Karte (`Breitengrade/Planetos.biome.gz`) wird mit
   `tools/PlanetosKarte/umwandeln.py` aus einer Fan-Karte erzeugt. Die Fan-Karte selbst
   liegt nicht im Repo.

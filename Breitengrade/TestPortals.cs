@@ -50,6 +50,7 @@ namespace Breitengrade
                 ZNetScene.instance == null || WorldGenerator.instance == null) return;
             if (!ZoneSystem.instance.LocationsGenerated) return;
             s_done = true;
+            WaterShaderScale.ApplyAll(); // inzwischen nachgeladene Materialien
 
             try
             {
@@ -341,14 +342,14 @@ namespace Breitengrade
                 int added = 0;
                 if (pins != null && Planetos.Enabled)
                 {
-                    // alte Portal-Markierungen der Orte weg, stattdessen Feuerstellen-Symbol je Ort
+                    // alte Portal-Markierungen der Orte weg, stattdessen Haus-Symbol je Ort
                     var placeTags = PlaceTags();
-                    foreach (var old in pins.Where(p => p.m_type == Minimap.PinType.Icon4 && placeTags.Contains(p.m_name)).ToList())
+                    foreach (var old in pins.Where(p => (p.m_type == Minimap.PinType.Icon4 || p.m_type == Minimap.PinType.Icon0) && placeTags.Contains(p.m_name)).ToList())
                         Minimap.instance.RemovePin(old);
                     foreach (var kv in PointsOfInterest.PinPositions)
                     {
-                        if (pins.Any(p => p.m_name == kv.Key && p.m_type == Minimap.PinType.Icon0)) continue;
-                        Minimap.instance.AddPin(kv.Value, Minimap.PinType.Icon0, kv.Key, true, false, 0L, default);
+                        if (pins.Any(p => p.m_name == kv.Key && p.m_type == Minimap.PinType.Icon1)) continue;
+                        Minimap.instance.AddPin(kv.Value, Minimap.PinType.Icon1, kv.Key, true, false, 0L, default);
                         added++;
                     }
                 }
@@ -608,6 +609,7 @@ namespace Breitengrade
             MageTower.Shape(wx, wy, ref __result);
             if (Planetos.Enabled)
             {
+                PointsOfInterest.ShapeTerrain(wx, wy, ref __result);
                 float wall = Planetos.WallHeight(wx, wy, Plugin.WallTop.Value);
                 if (!float.IsNaN(wall) && wall > __result) __result = wall;
             }

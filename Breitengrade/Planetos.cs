@@ -385,27 +385,28 @@ namespace Breitengrade
         /// Wie viele Orte (Points of Interest) um einen benannten Ort herum entstehen.
         /// Ohne Eintrag: DefaultPoiCount. Die Art richtet sich nach dem Biom (Dorf, Fuling-Lager, Turmruinen, Dvergr …).
         /// </summary>
-        public const int DefaultPoiCount = 5;
+        public const int DefaultPoiCount = 8;
 
         public static readonly System.Collections.Generic.Dictionary<string, int> PoiCount =
             new System.Collections.Generic.Dictionary<string, int>
         {
-            ["Hardhome"] = 3,
-            ["Winterfell"] = 12,
-            ["King's Landing"] = 8,
-            ["Oldtown"] = 6,
-            ["Volantis"] = 7,
-            ["Vaes Dothrak"] = 10,
-            ["Meereen"] = 6,
-            ["Qarth"] = 6,
-            ["Asshai"] = 6,
-            ["Yeen"] = 10,
-            ["Sothoryos"] = 6,
-            ["Ulthos"] = 6,
+            ["Hardhome"] = 6,
+            ["Winterfell"] = 16,
+            ["King's Landing"] = 16,
+            ["Oldtown"] = 12,
+            ["Lannisport"] = 12,
+            ["Volantis"] = 14,
+            ["Braavos"] = 12,
+            ["Pentos"] = 12,
+            ["Vaes Dothrak"] = 16,
+            ["Meereen"] = 12,
+            ["Qarth"] = 12,
+            ["Asshai"] = 12,
+            ["Yeen"] = 14,
+            ["Sothoryos"] = 10,
+            ["Ulthos"] = 10,
             ["Castle Black"] = 8,
-            ["The Neck"] = 7,
-            ["The Sorrows"] = 7,
-            ["Land of Fire"] = 12,
+            ["Land of Fire"] = 16,
         };
 
         /// <summary>Frühere deutsche Portalnamen → englische Namen (für schon erstellte Welten).</summary>

@@ -44,7 +44,7 @@ namespace Breitengrade
             MageTower.Configure();
             VegetationAdjuster.OnWorldChanged();
             LocationScaler.OnWorldChanged();
-            TestPortals.OnWorldChanged();
+            TestPortals.OnWorldChanged(); PointsOfInterest.OnWorldChanged();
             Patch_SpawnPlaza.Reset();
             Plugin.Log.LogInfo($"{(planetos ? "Planetos" : "Breitengrade")} AKTIV für Welt \"{world.m_name}\" (Seed {world.m_seedName}), Weltgröße x{scale}.");
         }

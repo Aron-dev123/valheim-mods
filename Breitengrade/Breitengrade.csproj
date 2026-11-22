@@ -21,6 +21,7 @@
     <Reference Include="UnityEngine.CoreModule" HintPath="$(ValheimManaged)\UnityEngine.CoreModule.dll" Private="false" />
     <Reference Include="assembly_valheim" HintPath="$(ValheimManaged)\assembly_valheim.dll" Private="false" />
     <Reference Include="assembly_utils" HintPath="$(ValheimManaged)\assembly_utils.dll" Private="false" />
+    <Reference Include="SoftReferenceableAssets" HintPath="$(ValheimManaged)\SoftReferenceableAssets.dll" Private="false" />
     <Reference Include="Splatform" HintPath="$(ValheimManaged)\Splatform.dll" Private="false" />
     <Reference Include="Unity.TextMeshPro" HintPath="$(ValheimManaged)\Unity.TextMeshPro.dll" Private="false" />
     <Reference Include="UnityEngine.UI" HintPath="$(ValheimManaged)\UnityEngine.UI.dll" Private="false" />
