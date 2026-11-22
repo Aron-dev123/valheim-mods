@@ -33,6 +33,7 @@ namespace Breitengrade.Bau
             public float Houses = 1f;      // Dichte der Häuser (0..1)
             public int MaxLevels = 1;      // Stockwerke der Häuser
             public Mat? UpperMat;          // Obergeschosse aus anderem Material (z. B. Fachwerk über Stein)
+            public bool RoundTowers;       // runde Trommeltürme statt eckiger Ecktürme
         }
 
         static Style St(Mark mark, Mat wall = Mat.Stone, Mat house = Mat.Wood, Mat keep = Mat.Stone,
@@ -58,13 +59,13 @@ namespace Breitengrade.Bau
             ["The Twins"] = St(Mark.Twins, rings: 1),
             ["Pyke"] = St(Mark.Pyke, rings: 0, house: Mat.Dark, houses: 0.5f),
             ["The Eyrie"] = St(Mark.Eyrie, rings: 1, house: Mat.Stone, houses: 0.6f),
-            ["Riverrun"] = St(Mark.Castle, rings: 1),
+            ["Riverrun"] = St(Mark.Castle, rings: 1).Round(),
             ["Harrenhal"] = St(Mark.Harrenhal, rings: 1, wallRows: 5, houses: 0.4f),
             ["Lannisport"] = St(Mark.Castle, house: Mat.Stone, upper: Mat.Wood, levels: 2),
             ["Dragonstone"] = St(Mark.Castle, wall: Mat.Marble, keep: Mat.Marble, house: Mat.Dark),
-            ["King's Landing"] = St(Mark.KingsLanding, house: Mat.Stone, upper: Mat.Dark, levels: 3, wallRows: 4),
+            ["King's Landing"] = St(Mark.KingsLanding, house: Mat.Stone, upper: Mat.Dark, levels: 3, wallRows: 4).Round(),
             ["Storm's End"] = St(Mark.StormsEnd, rings: 1, wallRows: 4),
-            ["Highgarden"] = St(Mark.Concentric, rings: 3, house: Mat.Stone, levels: 2),
+            ["Highgarden"] = St(Mark.Concentric, rings: 3, house: Mat.Stone, levels: 2).Round(),
             ["Oldtown"] = St(Mark.Hightower, house: Mat.Stone, upper: Mat.Dark, levels: 3),
             ["Sunspear"] = St(Mark.SunTower, rings: 3, house: Mat.Stone, pitched: false),
             // Freie Städte
@@ -96,6 +97,8 @@ namespace Breitengrade.Bau
             ["Land of Fire"] = St(Mark.Ruins, wall: Mat.Grausten, house: Mat.Grausten, keep: Mat.Grausten, pitched: false, ruin: 0.45f),
         };
 
+        static Style Round(this Style s) { s.RoundTowers = true; return s; }
+
         static Style DefaultStyle(int biome)
         {
             if (biome == Latitude.DeepNorth) return St(Mark.Huts, rings: 0, house: Mat.Dark);
@@ -112,6 +115,7 @@ namespace Breitengrade.Bau
         sealed class Kit
         {
             public PieceBox Wall, Floor, Roof, Pillar, Merlon, RoofTop, Gable, Corner, Door, DoorTop;
+            public bool DoubleDoor; // zwei Torflügel (Stein: 4 m breite Öffnung)
         }
 
         static readonly Dictionary<string, PieceBox> s_boxes = new Dictionary<string, PieceBox>();
@@ -153,15 +157,15 @@ namespace Breitengrade.Bau
                     k.Door = Pick("wood_gate"); k.DoorTop = Pick("wood_wall_half");
                     break;
                 case Mat.Marble:
-                    k.Door = Pick("darkwood_gate");
+                    k.Door = Pick("wood_gate"); k.DoorTop = Pick("blackmarble_tile_wall_1x1");
                     break;
                 case Mat.Grausten:
                     k.Corner = PickAny("Piece_grausten_pillarbase_medium", "stone_pillar");
-                    k.Door = Pick("darkwood_gate");
+                    k.Door = Pick("darkwood_gate"); k.DoubleDoor = true;
                     break;
                 default:
                     k.Corner = PickAny("stone_pillar");
-                    k.Door = Pick("darkwood_gate");
+                    k.Door = Pick("darkwood_gate"); k.DoubleDoor = true;
                     break;
             }
             return k;
@@ -230,6 +234,7 @@ namespace Breitengrade.Bau
 
 
         static bool s_water;
+        static Style s_style;
         static CityBuilder.Plan s_plan;
         static int s_biome;
 
@@ -245,6 +250,7 @@ namespace Breitengrade.Bau
             var place = Planetos.Places.First(p => p.name == plan.Name);
             var style = Styles.TryGetValue(plan.Name, out var st) ? st : DefaultStyle(place.biome);
             s_biome = place.biome;
+            s_style = style;
             s_rng = new System.Random(plan.Name.GetStableHashCode() ^ WorldGenerator.instance.GetSeed());
             s_ruin = style.Ruin;
             s_reserved.Clear();
@@ -323,8 +329,9 @@ namespace Breitengrade.Bau
             {
                 case Mark.Winterfell:
                     // Great Keep, Great Hall, viele Türme, der zerbrochene Turm, Glashaus (offen), Godswood frei
-                    Castle(c + new Vector3(-10f, 0f, 8f), 26f, 20f, keep, 4, true);
+                    Castle(c + new Vector3(-10f, 0f, 8f), 26f, 20f, keep, 4, true, HallKind.North);
                     Box(c + new Vector3(16f, 0f, 10f), 22f, 12f, c.y, 2, keep, door: true, pitched: true, merlons: false);
+                    GreatHall(c + new Vector3(16f, 0f, 10f), 22f, 12f, c.y, keep, HallKind.North);
                     Reserve(c + new Vector3(16f, 0f, 10f), 14f);
                     foreach (var (dx, dz, lv) in new[] { (-26f, -16f, 6), (24f, -18f, 5), (-30f, 22f, 7), (28f, 28f, 5), (0f, 34f, 6), (4f, -30f, 5) })
                         TowerAt(c + new Vector3(dx, 0f, dz), 7f, lv, keep, beacon: false);
@@ -361,18 +368,19 @@ namespace Breitengrade.Bau
                     var dark = KitOf(Mat.Dark);
                     // Red Keep: Ringmauer mit sieben Trommeltürmen, Maegor's Holdfast, Thronsaal, Tower of the Hand
                     RingSquare(rk, 56f, 5, keep);
-                    foreach (var (sx, sz) in Corners) TowerAt(rk + new Vector3(sx * 28f, 0f, sz * 28f), 8f, 7, keep, true);
+                    foreach (var (sx, sz) in Corners) RoundTower(rk + new Vector3(sx * 28f, 0f, sz * 28f), 5.5f, 7, keep, true);
                     TowerAt(rk + new Vector3(-7f, 0f, -28f), 6f, 6, keep, false);   // Torhaus
                     TowerAt(rk + new Vector3(7f, 0f, -28f), 6f, 6, keep, false);
                     TowerAt(rk + new Vector3(28f, 0f, 0f), 7f, 6, keep, false);
-                    Castle(rk + new Vector3(-9f, 0f, 9f), 18f, 16f, keep, 6, true);    // Maegor's Holdfast
+                    Castle(rk + new Vector3(-9f, 0f, 9f), 18f, 16f, keep, 6, true, HallKind.Lord);    // Maegor's Holdfast
                     Box(rk + new Vector3(8f, 0f, 8f), 20f, 12f, rk.y, 3, keep, door: true, pitched: false, merlons: true); // Thronsaal
                     Roof(rk + new Vector3(8f, 0f, 8f), 20f, 12f, rk.y + 3 * LevelHeight(keep), dark);
-                    Decor(new[] { "piece_throne02", "piece_throne01" }, rk + new Vector3(8f, 0.1f, 12.5f), 180f);
+                    GreatHall(rk + new Vector3(8f, 0f, 8f), 20f, 12f, rk.y, keep, HallKind.Iron);
                     TowerAt(rk + new Vector3(12f, 0f, -12f), 8f, 8, keep, true);       // Tower of the Hand
                     Reserve(rk0, 36f);
                     // Great Sept of Baelor: Marmorbau mit großer Kuppel und sieben Türmen
                     Box(sept, 22f, 22f, sept.y, 3, marble, door: true, pitched: false, merlons: false);
+                    SeptInterior(sept, 22f, 22f, sept.y, marble, 3 * LevelHeight(marble));
                     Dome(sept + Vector3.up * (3 * LevelHeight(marble)), 22f, marble);
                     for (int i = 0; i < 7; i++)
                     {
@@ -420,6 +428,7 @@ namespace Breitengrade.Bau
                         WithRuin(0.25f, () => TowerAt(p, 12f, 9, keep, false));
                     }
                     Box(c, 24f, 14f, c.y, 2, keep, door: true, pitched: true, merlons: false);
+                    GreatHall(c, 24f, 14f, c.y, keep, HallKind.Hearths);     // Halle der hundert Herde
                     Reserve(c, 42f);
                     break;
 
@@ -427,13 +436,24 @@ namespace Breitengrade.Bau
                     // schlanke weiße Türme, eng zusammen, sehr hoch
                     foreach (var (dx, dz, lv) in new[] { (0f, 0f, 12), (9f, 3f, 10), (-8f, 5f, 9), (3f, -9f, 10), (-6f, -7f, 8), (10f, -6f, 8), (-2f, 10f, 9) })
                         TowerAt(c + new Vector3(dx, 0f, dz), 6f, lv, keep, true);
+                    {
+                        var hh = c + new Vector3(0f, 0f, -18f);
+                        var white = KitOf(Mat.Stone);
+                        Box(hh, 16f, 12f, c.y, 2, white, door: true, pitched: false, merlons: true);
+                        GreatHall(hh, 16f, 12f, c.y, white, HallKind.HighHall);
+                        Reserve(hh, 11f);
+                    }
                     Reserve(c, 18f);
                     break;
 
                 case Mark.StormsEnd:
                     // ein gewaltiger runder Turm
-                    for (int ring = 0; ring < 2; ring++) RingWall(c, 14f - ring * 5f, 14 - ring * 2, keep, keep, towers: false, gates: ring == 0 ? 1 : 0);
-                    Reserve(c, 18f);
+                    // Storm's End: ein riesiger Trommelturm (die Mauer ist 30 m dick in den Büchern),
+                    // innen ein Saal, außen eine runde Vormauer
+                    RoundTower(c, 13f, 8, keep, true);
+                    GreatHall(c, 14f, 14f, c.y, keep, HallKind.Lord);
+                    RingWall(c, 24f, 4, keep, keep, towers: true, gates: 1);
+                    Reserve(c, 26f);
                     break;
 
                 case Mark.Titan:
@@ -466,6 +486,7 @@ namespace Breitengrade.Bau
                         var hbw = c + new Vector3(R * 0.35f, 0f, R * 0.2f);
                         var marble = KitOf(Mat.Marble);
                         Box(hbw, 16f, 12f, c.y, 2, marble.Wall != null ? marble : keep, door: true, pitched: false, merlons: false);
+                        BlackAndWhite(hbw, 16f, 12f, c.y, marble.Wall != null ? marble : keep);
                         Dome(hbw + new Vector3(0f, 2 * LevelHeight(keep), 0f), 10f, keep);
                         Reserve(hbw, 12f);
                         Castle(c, 18f, 18f, keep, 3, false); // Sealord's Palace
@@ -474,17 +495,33 @@ namespace Breitengrade.Bau
                     break;
 
                 case Mark.Tents:
-                    // Horse Gate (zwei hohe Pfeiler), Godsway mit Statuen, Zelte
-                    var gate = c + new Vector3(0f, 0f, -R + 8f);
-                    TowerAt(gate + new Vector3(-7f, 0f, 0f), 4f, 6, keep, false);
-                    TowerAt(gate + new Vector3(7f, 0f, 0f), 4f, 6, keep, false);
-                    Tiles(gate + new Vector3(0f, 0f, 0f), 18f, 4f, gate.y + 12f, keep.Floor);
-                    for (float z = -R + 20f; z < R - 20f; z += 14f)
-                        foreach (float x in new[] { -6f, 6f })
-                            Column(c + new Vector3(x, 0f, z), keep, 3);
-                    Box(c + new Vector3(0f, 0f, R * 0.4f), 14f, 10f, c.y, 2, keep, door: true, pitched: false, merlons: true);
-                    Reserve(c + new Vector3(0f, 0f, R * 0.4f), 10f);
+                {
+                    // Horse Gate: zwei sich aufbäumende Pferde aus Bronze, deren Hufe sich über der Straße
+                    // treffen (hier: zwei hohe Pfeiler mit Köpfen, darüber ein Bogen)
+                    var gate = c + new Vector3(0f, 0f, -R + 10f);
+                    foreach (float sx in new[] { -1f, 1f })
+                    {
+                        TowerAt(gate + new Vector3(sx * 7f, 0f, 0f), 4f, 7, keep, false);
+                        Decor(new[] { "blackmarble_head_big01", "blackmarble_head01" }, gate + new Vector3(sx * 6f, 7 * LevelHeight(keep) + 0.5f, 0f), sx > 0 ? 270f : 90f);
+                    }
+                    Tiles(gate, 14f, 4f, gate.y + 7 * LevelHeight(keep) - 1f, keep.Floor);
+                    // Godsway: breite Straße mit Statuen geraubter Götter auf beiden Seiten
+                    var pillar = PickAny("stone_pillar", "blackmarble_column_1");
+                    for (float z = -R + 22f; z < R * 0.3f; z += 10f)
+                        foreach (float sx in new[] { -1f, 1f })
+                        {
+                            var sp = c + new Vector3(sx * 8f, 0f, z);
+                            if (pillar != null) for (float py = 0f; py < 3.9f; py += Math.Max(1f, pillar.Height)) Put(pillar, new Vector3(sp.x, c.y + py, sp.z), 0f, 0.5f);
+                            Decor(new[] { (z / 10f) % 2 == 0 ? "blackmarble_head_big02" : "blackmarble_head_big01", "blackmarble_head01" }, sp + new Vector3(0f, 4f, 0f), sx > 0 ? 270f : 90f);
+                        }
+                    // Tempel der Dosh Khaleen mit Kuppel
+                    var temple = c + new Vector3(0f, 0f, R * 0.4f);
+                    Box(temple, 16f, 12f, c.y, 2, keep, door: true, pitched: false, merlons: false);
+                    Dome(temple + Vector3.up * (2 * LevelHeight(keep)), 12f, keep);
+                    GreatHall(temple, 16f, 12f, c.y, keep, HallKind.Lord);
+                    Reserve(temple, 12f);
                     break;
+                }
 
                 case Mark.Twins:
                     foreach (float sx in new[] { -1f, 1f })
@@ -505,6 +542,7 @@ namespace Breitengrade.Bau
                 case Mark.SunTower:
                     // Tower of the Sun mit Kuppel, daneben der Spear Tower
                     Box(c + new Vector3(-14f, 0f, -6f), 24f, 14f, c.y, 2, keep, door: true, pitched: false, merlons: true); // Old Palace
+                    GreatHall(c + new Vector3(-14f, 0f, -6f), 24f, 14f, c.y, keep, HallKind.Lord);
                     TowerAt(c + new Vector3(6f, 0f, 4f), 12f, 5, keep, false);                          // Tower of the Sun
                     Dome(c + new Vector3(6f, 5 * LevelHeight(keep), 4f), 12f, keep);
                     TowerAt(c + new Vector3(22f, 0f, -10f), 6f, 10, keep, false);                       // Spear Tower
@@ -516,6 +554,7 @@ namespace Breitengrade.Bau
                     // Holzbauten und der King's Tower aus Stein
                     TowerAt(c + new Vector3(-12f, 0f, 10f), 8f, 6, keep, true);
                     Box(c + new Vector3(10f, 0f, 8f), 20f, 10f, c.y, 1, KitOf(Mat.Wood), door: true, pitched: true, merlons: false);
+                    GreatHall(c + new Vector3(10f, 0f, 8f), 20f, 10f, c.y, KitOf(Mat.Wood), HallKind.Common);
                     Box(c + new Vector3(8f, 0f, -12f), 16f, 8f, c.y, 1, KitOf(Mat.Wood), door: true, pitched: true, merlons: false);
                     Reserve(c, 26f);
                     break;
@@ -523,6 +562,7 @@ namespace Breitengrade.Bau
                 case Mark.Hardhome:
                     // Langhaus in der Mitte, Hütten drumherum
                     Box(c, 24f, 10f, c.y, 1, house, door: true, pitched: true, merlons: false);
+                    GreatHall(c, 24f, 10f, c.y, house, HallKind.Longhall);
                     Reserve(c, 16f);
                     break;
 
@@ -557,7 +597,18 @@ namespace Breitengrade.Bau
                     break;
 
                 default:
-                    Castle(c, 22f, 18f, keep, 4, true);
+                    if (s_plan != null && s_plan.Name == "Dragonstone")
+                    {
+                        Castle(c, 22f, 18f, keep, 4, true, HallKind.PaintedTable);
+                        // Drachen statt Zinnen (Wasserspeier), auf allen vier Seiten
+                        float top = c.y + 4 * LevelHeight(keep);
+                        for (float x = -9f; x <= 9f; x += 6f)
+                        {
+                            Decor(new[] { "wood_dragon1", "darkwood_raven" }, new Vector3(c.x + x, top + 0.1f, c.z - 9.2f), 180f);
+                            Decor(new[] { "wood_dragon1", "darkwood_raven" }, new Vector3(c.x + x, top + 0.1f, c.z + 9.2f), 0f);
+                        }
+                    }
+                    else Castle(c, 22f, 18f, keep, 4, true);
                     Reserve(c, 20f);
                     break;
             }
@@ -624,6 +675,56 @@ namespace Breitengrade.Bau
             }
         }
 
+        /// <summary>
+        /// Runder Turm (Trommelturm): Mauerring aus ganzen Wandstücken, oben Plattform und Zinnen,
+        /// unten eine Toröffnung nach Süden.
+        /// </summary>
+        static void RoundTower(Vector3 c, float r, int levels, Kit k, bool beacon)
+        {
+            var wall = k.Wall;
+            int sides = Math.Max(6, (int)Math.Round(2f * Mathf.PI * r / wall.Width));
+            r = wall.Width / (2f * Mathf.Sin(Mathf.PI / sides));
+            int rows = RowsFor(k) * levels;
+            if (s_ruin > 0.25f && rows > 1) rows = Math.Max(1, rows - s_rng.Next(rows / 2 + 1));
+            for (int i = 0; i < sides; i++)
+            {
+                float a0 = i * 2f * Mathf.PI / sides - Mathf.PI / 2f, a1 = (i + 1) * 2f * Mathf.PI / sides - Mathf.PI / 2f;
+                var p0 = new Vector3(c.x + Mathf.Cos(a0) * r, c.y, c.z + Mathf.Sin(a0) * r);
+                var p1 = new Vector3(c.x + Mathf.Cos(a1) * r, c.y, c.z + Mathf.Sin(a1) * r);
+                var mid = (p0 + p1) / 2f;
+                var dir = Flat(p1 - p0).normalized;
+                float yaw = Mathf.Atan2(-dir.z, dir.x) * Mathf.Rad2Deg;
+                bool doorSide = i == 0 || i == sides - 1 ? false : false;
+                for (int row = 0; row < rows; row++)
+                {
+                    // Toröffnung im südlichsten Stück, zwei Reihen hoch
+                    if (i == sides * 3 / 4 && row * wall.Height < 3.9f && r > 3f) continue;
+                    Put(wall, new Vector3(mid.x, c.y + row * wall.Height, mid.z), yaw, (row + 1f) / rows);
+                }
+                // Zinnen
+                if (k.Merlon != null && s_ruin <= 0.25f && i % 2 == 0)
+                    Put(k.Merlon, new Vector3(mid.x, c.y + rows * wall.Height, mid.z), yaw, 1f);
+            }
+            // Pfeiler an den Ecken des Rings
+            if (k.Corner != null)
+                for (int i = 0; i < sides; i++)
+                {
+                    float a = i * 2f * Mathf.PI / sides - Mathf.PI / 2f;
+                    for (float y = 0f; y < rows * wall.Height - 0.05f; y += Math.Max(0.5f, k.Corner.Height))
+                        Put(k.Corner, new Vector3(c.x + Mathf.Cos(a) * r, c.y + y, c.z + Mathf.Sin(a) * r), 0f, 0.5f);
+                }
+            // Plattform oben (runde Fläche aus Platten)
+            float top = c.y + rows * wall.Height;
+            if (k.Floor != null && s_ruin <= 0.25f)
+            {
+                float t = k.Floor.Width;
+                for (float x = -r + t / 2f; x < r; x += t)
+                    for (float z = -r + t / 2f; z < r; z += t)
+                        if (x * x + z * z < (r - 0.4f) * (r - 0.4f)) Put(k.Floor, new Vector3(c.x + x, top - k.Floor.Height + 0.05f, c.z + z), 0f, 1f);
+            }
+            if (beacon) Decor(new[] { "piece_brazierfloor02", "piece_brazierfloor01" }, new Vector3(c.x, top + 0.2f, c.z));
+        }
+
         static readonly (float, float)[] Corners = { (-1f, -1f), (1f, -1f), (-1f, 1f), (1f, 1f) };
 
         static void WithRuin(float extra, Action a)
@@ -634,9 +735,10 @@ namespace Breitengrade.Bau
         }
 
         /// <summary>Burg: Bergfried mit vier Ecktürmen.</summary>
-        static void Castle(Vector3 c, float w, float d, Kit k, int levels, bool cornerTowers)
+        static void Castle(Vector3 c, float w, float d, Kit k, int levels, bool cornerTowers, HallKind hall = HallKind.Lord)
         {
             Box(c, w, d, c.y, levels, k, door: true, pitched: false, merlons: true);
+            GreatHall(c, w, d, c.y, k, hall);
             // Banner des Hauses an der Front und an den Seiten
             if (s_ruin <= 0.25f)
             {
@@ -649,7 +751,11 @@ namespace Breitengrade.Bau
             }
             if (cornerTowers)
                 foreach (var (sx, sz) in Corners)
-                    TowerAt(c + new Vector3(sx * w / 2f, 0f, sz * d / 2f), 6f, levels + 2, k, false);
+                {
+                    var tp = c + new Vector3(sx * w / 2f, 0f, sz * d / 2f);
+                    if (s_style != null && s_style.RoundTowers) RoundTower(tp, 4.5f, levels + 2, k, false);
+                    else TowerAt(tp, 6f, levels + 2, k, false);
+                }
         }
 
         static void TowerAt(Vector3 c, float size, int levels, Kit k, bool beacon)
@@ -835,8 +941,9 @@ namespace Breitengrade.Bau
             Vector3 p = alongX ? new Vector3(c.x + o, y0, c.z + dz * d / 2f) : new Vector3(c.x + dx * w / 2f, y0, c.z + o);
             float yaw = alongX ? 0f : 90f;
             var dirAlong = alongX ? Vector3.right : Vector3.forward;
-            float doorW = k.Door != null ? k.Door.Width : 2f, doorH = k.Door != null ? k.Door.Height : 3f;
-            // Füllteile neben dem Tor, wenn das Wandstück breiter ist (Stein: 4 m Stücke)
+            bool dbl = k.DoubleDoor && k.Door != null && seg >= 2f * k.Door.Width - 0.1f;
+            float doorW = k.Door != null ? k.Door.Width * (dbl ? 2f : 1f) : 2f, doorH = k.Door != null ? k.Door.Height : 3f;
+            // Füllteile neben dem Tor, wenn das Wandstück breiter ist
             if (seg > doorW + 0.4f && k.Merlon != null)
             {
                 float fill = (seg - doorW) / 2f;
@@ -845,13 +952,25 @@ namespace Breitengrade.Bau
                         for (float fo = doorW / 2f + k.Merlon.Width / 2f; fo < doorW / 2f + fill; fo += k.Merlon.Width)
                             Put(k.Merlon, p + dirAlong * (sgn * fo) + new Vector3(0f, fy, 0f), yaw, 0.3f);
             }
-            // über dem Tor bis zur Höhe von zwei Wandreihen schließen
+            // über dem Tor bis zur Höhe von zwei Wandreihen schließen (über die ganze Torbreite)
             if (k.DoorTop != null && doorH < 3.95f)
+            {
+                int nt = Math.Max(1, (int)Math.Round(doorW / Math.Max(0.5f, k.DoorTop.Width)));
+                float tw = doorW / nt;
                 for (float fy = doorH; fy < 4f - 0.05f; fy += Math.Max(0.5f, k.DoorTop.Height))
-                    Put(k.DoorTop, p + new Vector3(0f, fy, 0f), yaw, 0.5f);
+                    for (int q = 0; q < nt; q++)
+                        Put(k.DoorTop, p + dirAlong * (-doorW / 2f + tw * (q + 0.5f)) + new Vector3(0f, fy, 0f), yaw, 0.5f);
+            }
             if (s_ruin > 0.3f) return; // Ruinen ohne Türen
-            if (k.Door != null) Put(k.Door, p, yaw, 0.2f);
-            else DoorPiece(p, alongX ? (dz < 0 ? 0f : 180f) : (dx > 0 ? 270f : 90f));
+            if (k.Door == null) { DoorPiece(p, alongX ? (dz < 0 ? 0f : 180f) : (dx > 0 ? 270f : 90f)); return; }
+            if (dbl)
+            {
+                // zwei Flügel, der rechte gespiegelt: zusammen ein ganzes Tor
+                // Scharniere außen, Griffe in der Mitte (wie ein großes Tor)
+                Put(k.Door, p + dirAlong * (k.Door.Width / 2f), yaw, 0.2f);
+                Put(k.Door, p - dirAlong * (k.Door.Width / 2f), yaw + 180f, 0.2f);
+            }
+            else Put(k.Door, p, yaw, 0.2f);
         }
 
         static readonly Dictionary<string, Vector3> s_doorCenter = new Dictionary<string, Vector3>();
@@ -1004,18 +1123,38 @@ namespace Breitengrade.Bau
             if (!stilts && s_rng.NextDouble() < 0.5) Decor(new[] { "fire_pit", "hearth" }, new Vector3(p.x + (w / 2f + 2.5f), p.y, p.z), 0f);
         }
 
+        /// <summary>Dothraki-Lager: Gruppen aus Zelten um eine Feuerstelle, größere Zelte der Khals, Pferdepfähle.</summary>
         static void Tents(Vector3 c, float inner, Kit k)
         {
             var roof = k.Roof ?? Pick("darkwood_roof_45", "wood_roof_45");
+            var pole = PickAny("wood_pole2", "darkwood_pole");
             if (roof == null) return;
-            for (float gx = -inner; gx <= inner; gx += 11f)
-            for (float gz = -inner; gz <= inner; gz += 11f)
+            for (int camp = 0; camp < 220; camp++)
             {
-                if (Math.Abs(gx) < 12f) continue; // Godsway
-                if (s_rng.NextDouble() > 0.7) continue;
-                var p = new Vector3(c.x + gx, c.y, c.z + gz);
-                if (Flat(p - c).magnitude > inner || !Free(p, 4f)) continue;
-                Roof(p, 4f, 5f, c.y, roof);
+                float a = (float)s_rng.NextDouble() * 2f * Mathf.PI, r = 18f + Mathf.Sqrt((float)s_rng.NextDouble()) * (inner - 22f);
+                var cc = c + new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
+                if (Math.Abs(cc.x - c.x) < 13f || !Free(cc, 10f)) continue; // Godsway frei
+                Reserve(cc, 10f);
+                Decor(new[] { "fire_pit" }, cc, 0f);
+                int n = 3 + s_rng.Next(3);
+                for (int t = 0; t < n; t++)
+                {
+                    float ta = t * 2f * Mathf.PI / n + (float)s_rng.NextDouble() * 0.4f;
+                    bool big = t == 0 && s_rng.NextDouble() < 0.5;
+                    float w = big ? 10f : 6f, d = big ? 8f : 4f;
+                    var tp = cc + new Vector3(Mathf.Cos(ta) * (big ? 8.5f : 7f), 0f, Mathf.Sin(ta) * (big ? 8.5f : 7f));
+                    WithFrame(tp, -ta * Mathf.Rad2Deg + 90f, () =>
+                    {
+                        // Zelt: Stangen an den Ecken, Stoffdach darüber
+                        if (pole != null)
+                            foreach (var (sx, sz) in Corners) Put(pole, new Vector3(tp.x + sx * (w / 2f - 0.2f), tp.y, tp.z + sz * (d / 2f - 0.2f)), 0f, 0.3f);
+                        Roof(tp, w, d, tp.y + 1.4f, roof);
+                        Decor(new[] { "rug_hare", "rug_straw" }, new Vector3(tp.x, tp.y + 0.03f, tp.z), 0f);
+                    });
+                }
+                // Pferdepfahl
+                if (pole != null && s_rng.NextDouble() < 0.6)
+                    Put(pole, cc + new Vector3(4f, 0f, -4f), 0f, 0.3f);
             }
         }
 

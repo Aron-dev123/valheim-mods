@@ -106,8 +106,10 @@ namespace Breitengrade.Bau
             // Wahrzeichen trocken durchspielen: wo ist kein Platz für Häuser?
             var reserved = DryLandmarks(p, s, c);
 
-            // Platz
+            // Platz, Höfe der Wahrzeichen (gepflastert, ohne Bewuchs)
             t.Areas.Add(new RoadNet.Area { X = c.x, Z = c.z, HX = t.Plaza, Kind = 1 });
+            foreach (var (rc, rr) in reserved)
+                t.Areas.Add(new RoadNet.Area { X = rc.x, Z = rc.z, HX = rr * 0.85f, Kind = 1 });
 
             // Hauptstraßen (zu den vier Toren, auch ohne Mauer), leicht geschwungen
             var mains = new List<List<Vector3>>();
@@ -264,6 +266,8 @@ namespace Breitengrade.Bau
             }
             why = 7;
             t.Plots.Add(new Plot { C = pc, Yaw = yaw, W = w, D = d, Kind = kind });
+            // Boden im Haus pflastern: kein Gras/Farn, das durch den Boden wächst
+            if (kind == 0) t.Areas.Add(new RoadNet.Area { X = pc.x, Z = pc.z, HX = w / 2f + 0.3f, HZ = d / 2f + 0.3f, Yaw = yaw, Kind = 2 });
             if (kind == 1) t.Areas.Add(new RoadNet.Area { X = pc.x, Z = pc.z, HX = w / 2f - 0.6f, HZ = d / 2f - 0.6f, Yaw = yaw, Kind = 0 });
             return true;
         }
@@ -468,17 +472,21 @@ namespace Breitengrade.Bau
             // Erdgeschoss
             bool roofHere = pitched && levels == 1 && upper == null;
             bool flatTop = !pitched && levels == 1;
-            Box(p, w, d, p.y, 1, k, door: true, pitched: roofHere, merlons: flatTop, doorSide: 0, top: flatTop || roofHere);
+            bool parapet = flatTop && s_rng.NextDouble() < 0.25; // nur wenige Häuser mit Zinnen
+            Box(p, w, d, p.y, 1, k, door: true, pitched: roofHere, merlons: parapet, doorSide: 0, top: flatTop || roofHere);
             float lh = LevelHeight(k);
             // Obergeschosse (ggf. aus anderem Material, z. B. Fachwerk über Steinsockel)
             var uk = upper ?? k;
             if (levels > 1)
             {
-                Box(new Vector3(p.x, p.y + lh, p.z), w, d, p.y + lh, levels - 1, uk, door: false, pitched: pitched, merlons: !pitched);
+                Box(new Vector3(p.x, p.y + lh, p.z), w, d, p.y + lh, levels - 1, uk, door: false, pitched: pitched, merlons: !pitched && s_rng.NextDouble() < 0.25);
             }
             else if (upper != null && pitched)
                 Roof(p, Snap(w, k.Wall.Width), Snap(d, k.Wall.Width), p.y + lh, uk);
             Windows(p, w, d, p.y, levels, k, uk);
+            // Flachdachhäuser (Essos, Dorne): manche mit kleiner Kuppel
+            if (!pitched && s_ruin <= 0.25f && s_rng.NextDouble() < 0.18 && Math.Min(w, d) >= 6f)
+                Dome(new Vector3(p.x, p.y + levels * lh, p.z), Math.Min(w, d) - 2f, uk);
             // Kleinigkeiten vor dem Haus
             double r = s_rng.NextDouble();
             var front = new Vector3(p.x, p.y, p.z - d / 2f - 1.1f);
