@@ -21,7 +21,7 @@ namespace Breitengrade
     /// Alle Städte haben ungefähr die Fläche der Meadows-Städte: kleine Gebäude (Türme) gibt es
     /// entsprechend öfter. Die Gebäude einer Welt stehen in BepInEx/config/Breitengrade/orte_&lt;id&gt;.txt.
     /// </summary>
-    internal static class PointsOfInterest
+    public static class PointsOfInterest
     {
         static readonly MethodInfo ZoneGenerated = AccessTools.Method(typeof(ZoneSystem), "IsZoneGenerated");
         static readonly MethodInfo SpawnLocationM = AccessTools.Method(typeof(ZoneSystem), "SpawnLocation");
@@ -70,9 +70,10 @@ namespace Breitengrade
             new Dictionary<Vector2s, List<(ZoneSystem.ZoneLocation, Vector3)>>();
 
         /// <summary>Eingeebnete Stadtflächen (Mitte, Radius, Höhe). Wird als Ganzes ersetzt (Gelände-Threads).</summary>
-        public struct Plateau { public float X, Z, R, H; }
+        /// <summary>Eingeebnete Fläche; Fade = Breite des Übergangs (0 = Standard 70 m).</summary>
+        public struct Plateau { public float X, Z, R, H, Fade; }
         public static volatile Plateau[] Plateaus = new Plateau[0];
-        const float PlateauFade = 70f;
+        public const float PlateauFade = 70f;
 
         public static void OnWorldChanged()
         {
@@ -170,7 +171,7 @@ namespace Breitengrade
                 var groups = Kinds.TryGetValue(place.biome, out var kinds)
                     ? kinds.Select(g => FindLocations(zs, g)).Where(g => g.Count > 0).ToList()
                     : new List<List<ZoneSystem.ZoneLocation>>();
-                if (baseWant > 0 && groups.Count > 0 && !city.OldStyle)
+                if (false && baseWant > 0 && groups.Count > 0 && !city.OldStyle)
                 {
                     bool meadows = place.biome == Latitude.Meadows;
                     // gleiche Fläche wie eine Meadows-Stadt mit baseWant Dörfern
@@ -186,7 +187,7 @@ namespace Breitengrade
                 }
 
                 // Karte, freie Fläche, Einebnung
-                if (city.Members.Count == 0) { PinPositions[place.name] = new Vector3(cx, 0f, cz); continue; }
+                if (city.Members.Count == 0) continue; // wird vom Stadtbauer gebaut
                 Vector3 mid = Vector3.zero;
                 foreach (var m in city.Members) mid += Flat(m.pos);
                 mid /= city.Members.Count;
@@ -204,6 +205,9 @@ namespace Breitengrade
                 }
                 Plateaus = plateaus.ToArray();
             }
+            // Neue Städte aus Bauteilen (Orte ohne Gebäude aus älteren Versionen)
+            var old = new HashSet<string>(cities.Where(kv => kv.Value.Members.Count > 0).Select(kv => kv.Key));
+            plateaus.AddRange(CityBuilder.PlanAll(old, portals));
             Plateaus = plateaus.ToArray();
             if (added > 0) Plugin.Log.LogInfo($"[Orte] {added} Gebäude eingetragen.");
         }
@@ -463,12 +467,16 @@ namespace Breitengrade
             {
                 var pl = arr[i];
                 float dx = x - pl.X, dz = z - pl.Z;
-                float outer = pl.R + PlateauFade;
+                float fade = pl.Fade > 0f ? pl.Fade : PlateauFade;
+                float outer = pl.R + fade;
                 float d2 = dx * dx + dz * dz;
                 if (d2 >= outer * outer) continue;
                 float d = (float)Math.Sqrt(d2);
-                float t = Mathf.Clamp01((d - pl.R) / PlateauFade);
+                float t = Mathf.Clamp01((d - pl.R) / fade);
                 t = t * t * (3f - 2f * t);
+                // Küste bleibt Küste: unter Wasser wird kaum angehoben (keine flache Scheibe ins Meer)
+                float keep = Mathf.Clamp01((height - 22f) / 8f);
+                t = 1f - (1f - t) * keep;
                 height = pl.H + (height - pl.H) * t;
             }
         }

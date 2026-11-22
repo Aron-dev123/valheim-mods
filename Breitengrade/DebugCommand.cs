@@ -28,6 +28,12 @@ namespace Breitengrade
             new Terminal.ConsoleCommand("bg_pins", "Breitengrade: alle Kartenmarkierungen mit Koordinaten und Bodenhöhe",
                 args => MapTools.ListPins(args.Context),
                 false, false, false, false, false, false, null, false, false, false);
+            new Terminal.ConsoleCommand("bg_foto", "Breitengrade: Fotos einer Stadt  bg_foto | bg_foto Name | bg_foto hier",
+                args => PhotoTour.Command(args.Context, args.Args, false),
+                false, false, false, false, false, false, null, false, false, false);
+            new Terminal.ConsoleCommand("bg_rundgang", "Breitengrade: Fotos aller Städte  bg_rundgang [ab Nummer]",
+                args => PhotoTour.Command(args.Context, args.Args, true),
+                false, false, false, false, false, false, null, false, false, false);
             new Terminal.ConsoleCommand("bg_tp", "Breitengrade: Teleport  bg_tp X Z | bg_tp X Höhe Z | bg_tp Markierungsname",
                 args => MapTools.Teleport(args.Context, args.Args),
                 false, false, false, false, false, false, null, false, false, false);
@@ -119,6 +125,30 @@ namespace Breitengrade
                     sb.AppendLine($"[bg_wasser] Eigene Werte am Renderer: {(block.isEmpty ? "keine" : "ja")}");
                 }
             }
+            // Wer zeichnet hier noch Ashlands-Wasser? Alle Renderer mit Ashlands-Werten im Umkreis
+            int ashId = Shader.PropertyToID("_AshlandsDistance"), offId = Shader.PropertyToID("_AshlandsYOffset");
+            sb.AppendLine($"[bg_wasser] Global: _AshlandsDistance {Shader.GetGlobalFloat(ashId):0}, _AshlandsYOffset {Shader.GetGlobalFloat(offId):0}");
+            var seen = new System.Collections.Generic.HashSet<string>();
+            foreach (var rend in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+            {
+                if (rend == null || !rend.enabled) continue;
+                foreach (var m in rend.sharedMaterials)
+                {
+                    if (m == null || !m.HasProperty(ashId)) continue;
+                    var blk = new MaterialPropertyBlock();
+                    rend.GetPropertyBlock(blk);
+                    float bv = blk.isEmpty ? float.NaN : blk.GetFloat(ashId);
+                    string key = $"{rend.gameObject.name}|{m.name}|{m.shader.name}|{m.GetFloat(ashId):0}|{bv:0}";
+                    if (!seen.Add(key)) continue;
+                    float dist = Vector3.Distance(rend.bounds.center, p);
+                    sb.AppendLine($"[bg_wasser] Renderer {rend.gameObject.name} ({dist:0} m), Material {m.name}, Shader {m.shader.name}, " +
+                                  $"_AshlandsDistance {m.GetFloat(ashId):0} / Block {bv:0}, _AshlandsYOffset {m.GetFloat(offId):0}");
+                    if (seen.Count > 40) break;
+                }
+            }
+            sb.AppendLine($"[bg_wasser] Umgebung {EnvMan.instance?.GetCurrentEnvironment()?.m_name}, Biom laut Mod " +
+                          $"{(Heightmap.Biome)Latitude.GetBiome(p.x, p.z)}, Ashlands-Tiefe {Latitude.AshlandsDepth(p.x, p.z):0} m, " +
+                          $"Valheim-Formel IsAshlands {WorldGenerator.IsAshlands(p.x, p.z)}");
             string text = sb.ToString().TrimEnd();
             Plugin.Log.LogInfo(text);
             terminal?.AddString("Wasser-Daten ins Log geschrieben.");

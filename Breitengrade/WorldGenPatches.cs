@@ -4,7 +4,7 @@ using HarmonyLib;
 namespace Breitengrade
 {
     /// <summary>Merkt sich, ob die gerade geladene Welt unsere Breitengrad-Welt ist.</summary>
-    internal static class State
+    public static class State
     {
         public static bool Active;
 
@@ -44,7 +44,7 @@ namespace Breitengrade
             MageTower.Configure();
             VegetationAdjuster.OnWorldChanged();
             LocationScaler.OnWorldChanged();
-            TestPortals.OnWorldChanged(); PointsOfInterest.OnWorldChanged();
+            TestPortals.OnWorldChanged(); PointsOfInterest.OnWorldChanged(); CityBuilder.OnWorldChanged();
             Patch_SpawnPlaza.Reset();
             Plugin.Log.LogInfo($"{(planetos ? "Planetos" : "Breitengrade")} AKTIV für Welt \"{world.m_name}\" (Seed {world.m_seedName}), Weltgröße x{scale}.");
         }

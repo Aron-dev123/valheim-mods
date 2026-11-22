@@ -13,7 +13,7 @@ namespace Breitengrade
     /// Die Gegenstücke stehen auf flachen, trockenen Stellen, weit weg von Strukturen,
     /// und werden auf der Karte markiert.
     /// </summary>
-    internal static class TestPortals
+    public static class TestPortals
     {
         const string PortalPrefab = "portal_wood";
         const string MarkerKey = "breitengrade_testportal";
@@ -44,7 +44,7 @@ namespace Breitengrade
         {
             if (!State.Active || Time.time < s_nextCheck) return;
             s_nextCheck = Time.time + 1f;
-            if (s_done) { TryAddPins(); return; }
+            if (s_done) { TryAddPins(); WaterShaderScale.Rescan(); if (Planetos.Enabled) CityBuilder.Tick(); return; }
 
             if (ZNet.instance == null || ZoneSystem.instance == null || ZDOMan.instance == null ||
                 ZNetScene.instance == null || WorldGenerator.instance == null) return;
@@ -603,13 +603,14 @@ namespace Breitengrade
             }
         }
 
-        static void Postfix(WorldGenerator __instance, float wx, float wy, ref float __result)
+        static void Postfix(WorldGenerator __instance, float wx, float wy, ref float __result, ref Color mask)
         {
             if (!State.Active || t_inside) return;
             MageTower.Shape(wx, wy, ref __result);
             if (Planetos.Enabled)
             {
                 PointsOfInterest.ShapeTerrain(wx, wy, ref __result);
+                RoadNet.Paint(wx, wy, ref mask);
                 float wall = Planetos.WallHeight(wx, wy, Plugin.WallTop.Value);
                 if (!float.IsNaN(wall) && wall > __result) __result = wall;
             }

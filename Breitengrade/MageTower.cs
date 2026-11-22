@@ -17,7 +17,7 @@ namespace Breitengrade
     /// - Portalturm 16 x 16 m daneben, mehrere Etagen à 6 m. Je Etage 12 Portalplätze an den Wänden.
     ///   Die Etagen sind per Portal verbunden ("Turm Ebene 1-2" …), es gibt keine Treppen.
     /// </summary>
-    internal static class MageTower
+    public static class MageTower
     {
         public const string BuildMarker = "breitengrade_bau";
 
@@ -382,7 +382,7 @@ namespace Breitengrade
     }
 
     /// <summary>Maße eines Bauteils aus seinen Andockpunkten, damit Teile sauber aneinander passen.</summary>
-    internal sealed class PieceBox
+    public sealed class PieceBox
     {
         public string Prefab;
         public Vector3 Min, Max;
@@ -396,6 +396,8 @@ namespace Breitengrade
         public float Rise => Height;
         public float Run, StairWidth;
         public float RiseDirZ = 1f;
+        /// <summary>Dreiecksteile: auf welcher Seite (lokales x, +1/-1) das Teil hoch ist; 0 = gerade.</summary>
+        public float TallX;
 
         public static PieceBox Of(string prefabName)
         {
@@ -438,6 +440,11 @@ namespace Breitengrade
             var low = pts.Where(p => p.y < box.Min.y + 0.05f).ToList();
             if (high.Count > 0 && low.Count > 0)
                 box.RiseDirZ = high.Average(p => p.z) >= low.Average(p => p.z) ? 1f : -1f;
+            if (high.Count > 0)
+            {
+                float hx = high.Average(p => p.x) - (box.Min.x + box.Max.x) / 2f;
+                box.TallX = Math.Abs(hx) > 0.2f ? Math.Sign(hx) : 0f;
+            }
             return box;
         }
 
@@ -454,12 +461,22 @@ namespace Breitengrade
             MageTower.Spawn(Prefab, center - rot * localMid, rot);
         }
 
-        public void Place(Vector3 center, float yaw)
+        /// <summary>Setzt ein schräges Teil (Dach) so, dass es in Welt-Richtung <paramref name="riseDir"/> ansteigt;
+        /// <paramref name="center"/> ist die Mitte des Stücks auf Höhe seiner Unterkante.</summary>
+        public ZDO PlaceSloped(Vector3 center, Vector3 riseDir)
+        {
+            float yaw = Mathf.Atan2(riseDir.x, riseDir.z) * Mathf.Rad2Deg + (RiseDirZ > 0f ? 0f : 180f);
+            var rot = Quaternion.Euler(0f, yaw, 0f);
+            var localMid = new Vector3((Min.x + Max.x) / 2f, Min.y, (Min.z + Max.z) / 2f);
+            return MageTower.Spawn(Prefab, center - rot * localMid, rot);
+        }
+
+        public ZDO Place(Vector3 center, float yaw)
         {
             if (!AlongX) yaw += 90f;
             var rot = Quaternion.Euler(0f, yaw, 0f);
             var localMid = new Vector3((Min.x + Max.x) / 2f, Min.y, (Min.z + Max.z) / 2f);
-            MageTower.Spawn(Prefab, center - rot * localMid, rot);
+            return MageTower.Spawn(Prefab, center - rot * localMid, rot);
         }
     }
 

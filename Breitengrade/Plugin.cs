@@ -11,9 +11,9 @@ namespace Breitengrade
     {
         public const string Guid = "aron.valheim.breitengrade";
         public const string ModName = "Breitengrade";
-        public const string Version = "1.6.1";
+        public const string Version = "2.0.0";
 
-        internal static ManualLogSource Log;
+        public static ManualLogSource Log;
         internal static ConfigEntry<string> WorldName;
         internal static ConfigEntry<string> BandBounds;
         internal static ConfigEntry<float> Wobble;
@@ -40,12 +40,18 @@ namespace Breitengrade
         void Update()
         {
             TestPortals.Tick();
+            RemoteControl.Tick();
             PerfMonitor.Tick();
         }
 
+        public static Plugin Instance;
+
         void Awake()
         {
+            Instance = this;
             Log = Logger;
+            // Spiel läuft weiter, wenn das Fenster im Hintergrund ist (für die Fernsteuerung und Fotos)
+            UnityEngine.Application.runInBackground = true;
 
             WorldName = Config.Bind("Allgemein", "WeltName", "Breitengrade",
                 "Die Mod gilt NUR für Welten mit genau diesem Namen. Alle anderen Welten bleiben normal.");

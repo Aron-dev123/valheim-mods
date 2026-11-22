@@ -46,6 +46,16 @@ Ashlands → Plains → Meadows → Swamp → Mistlands → Black Forest → Mou
 - Große Karte: unter dem Biom-Namen stehen X, Z und die Bodenhöhe unter dem Mauszeiger.
 - `bg_tp X Z`, `bg_tp X Höhe Z` oder `bg_tp Markierungsname`: Teleport. `bg_pins` listet alle
   Markierungen mit Koordinaten. Portal „Weltrand-Test“ am Start führt an den äußersten Landpunkt.
+- Fotos (zum Prüfen der Städte): `bg_foto` (Stadt in der Nähe), `bg_foto Name`, `bg_foto hier`
+  (rundum von der eigenen Position) und `bg_rundgang [ab Nummer]` (alle Städte nacheinander).
+  Mittag, klares Wetter, ohne Anzeigen; Bilder landen in `Valheim/BepInEx/fotos/`.
+- `bg_wasser` schreibt zusätzlich alle Renderer mit Ashlands-Wasserwerten in der Nähe ins Log.
+- **Fernsteuerung (Entwicklung):** Der Stadtbau steckt in einem eigenen Modul
+  (`Breitengrade.Bau/`, wird nach `Valheim/BepInEx/breitengrade_bau/` gebaut) und kann im laufenden
+  Spiel neu geladen werden. Befehle in `Valheim/BepInEx/claude/befehl.txt` (eine Zeile je Befehl)
+  führt die Mod im Spiel aus und schreibt die Ergebnisse nach `antwort.txt`:
+  `laden`, `neu Stadt` (abreißen und neu bauen), `foto Stadt [1,2,8]`, `kamera x y z bx by bz name`,
+  `tp Stadt`, `teile` (alle Bauteile mit Maßen), `staedte`. Das Spiel läuft dafür auch im Hintergrund weiter.
 - Weltgröße höchstens 1,55: Größer würde Valheims Objektraster (512 × 512 Felder à 64 m)
   sprengen; dessen Speicherformat ist an mindestens acht Stellen fest darauf ausgelegt.
 - Leistungsprotokoll (`LeistungsProtokoll`): alle 15 Sekunden FPS, Objekte, Kreaturen und
@@ -87,19 +97,29 @@ Biom-Karte von Planetos (Westeros, Essos, Sothoryos und die fernen Kontinente) a
 - **Die Mauer**: ein sehr hoher, schmaler Wall quer über Westeros (`MauerHoehe`, Standard 260 m),
   ohne Lücke von der West- bis zur Ostküste. Sie ist die Grenze: südlich Mountain, nördlich und
   oben Deep North. Auf der Mauer wächst nichts, es erscheinen keine Kreaturen und keine Locations.
-- **Städte** an den Orten (nach einer Karte mit Ortsnamen), gebaut aus Valheim-Locations passend
-  zum Biom: Meadows-Dörfer, Fuling-Lager (Plains), Turmruinen (Black Forest), Dvergr-Türme
-  (Mistlands), Dörfer des Nordens (Deep North), Hütten und Krypten (Swamp), Ruinen mit Skeletten,
-  Steinkreise und Hütten (Mountain, Castle Black), Festungen, Ruinen und Dvergr-Türme (Ashlands).
-  Valheim erlaubt nur eine Location je 64-m-Zone; die Mod baut die Gebäude deshalb selbst, wenn
-  die Zone entsteht, und kann sie so dicht wie in einem Dorf setzen (die Außenbereiche berühren
-  sich, dazwischen bleibt eine Gasse). Alle Städte haben
-  etwa die Fläche der Meadows-Städte (normal 8 Dörfer, große Orte bis 16) – kleine Gebäude gibt es
-  entsprechend öfter (höchstens 30). Jede Stadt steht auf einer eingeebneten Fläche ohne Bäume
-  und Steine; andere, noch nicht gebaute Valheim-Locations im Stadtgebiet werden entfernt (keine
-  Bosse, Händler oder einzigartigen Orte). Die Gebäude einer Welt stehen in
-  `BepInEx/config/Breitengrade/orte_<Welt-ID>.txt`. Auf der Karte hat jede Stadt ein Haus-Symbol.
-  Fehlende Location-Arten stehen im Log (`[Orte]`).
+- **Städte** an den Orten (nach einer Karte mit Ortsnamen), selbst gebaut aus Bauteilen wie das
+  Magierhaus: eine eingeebnete Fläche (so groß wie früher eine Meadows-Stadt, große Orte größer),
+  Stadtmauer mit Türmen und Toren, ein Straßenkreuz, Häuser in Blöcken und ein Wahrzeichen nach
+  der Lore – z. B. Winterfell (Great Keep, Türme, Broken Tower, Godswood frei, doppelte Mauer),
+  King's Landing (Red Keep, Great Sept mit sieben Türmen, Dragonpit), Oldtown (gestufte Hightower
+  mit Leuchtfeuer, Citadel), Meereen/Astapor/Old Ghis (Stufenpyramiden), Harrenhal (fünf riesige,
+  teils zerfallene Türme), Vaes Dothrak (Horse Gate, Godsway, Zelte), Storm's End (Rundturm),
+  Braavos (Titan), Asshai (schwarzer Stein), Valyria/Yeen/Land of Fire (Ruinen), Hardhome und
+  Thenn (Hütten), The Neck (Pfahlbauten). Material und Dachform je Ort (Holz, dunkles Holz, Stein,
+  schwarzer Marmor, Grausten). Häuser in mehreren Formen (einfach, zweistöckig, L-Form,
+  Wohnturm, mit Schornstein oder Vordach), mit Türen zur Straße und etwas Einrichtung; Fackeln an
+  den Hauptstraßen, Brunnen und Marktstände am Platz. Alle Bauteile sind geschützt. Die Städte werden einmal je Welt
+  geplant (`BepInEx/config/Breitengrade/staedte_<Welt-ID>.txt`) und dann eine pro Sekunde gebaut.
+  Auf der Karte hat jede Stadt ein Haus-Symbol.
+- **Straßen** zwischen den Städten, direkt in die Geländetextur gemalt (keine Bauteile): die großen
+  Straßen nach King's Landing (Kingsroad bis Castle Black, Roseroad bis Oldtown, Goldroad, nach
+  Storm's End und Harrenhal) gepflastert, alle anderen als Feldweg. Die Wege werden um Wasser und
+  Berge herum gesucht und einmal je Welt gespeichert (`strassen_<Welt-ID>.txt`). An den
+  Stadtausgängen und alle 1,5 km stehen Wegweiser (Pfosten mit Schildern: Ziel, Pfeil, Entfernung).
+  In den Städten: gepflasterte oder erdige Hauptstraßen und Platz, Gassen zwischen den Häusern,
+  Gärten mit Zaun und Baum, Marktstände mit Dach, Bäume, Holzstapel, Banner an den Burgen.
+- **Ruinen** haben keine Löcher: Die Bauteile sind stark beschädigt (Risse) und die Gebäude
+  unterschiedlich hoch abgebrochen, ohne Dach. In normalen Städten zeigen einzelne Teile Altersspuren.
 - Die Biom-Karte (`Breitengrade/Planetos.biome.gz`) wird mit
   `tools/PlanetosKarte/umwandeln.py` aus einer Fan-Karte erzeugt. Die Fan-Karte selbst
   liegt nicht im Repo.

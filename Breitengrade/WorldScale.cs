@@ -13,7 +13,7 @@ namespace Breitengrade
     /// eingetragen. Diese Zahlen werden hier zur Laufzeit mit dem Faktor multipliziert,
     /// aber nur in der Breitengrade-Welt. Alle anderen Welten bleiben normal groß.
     /// </summary>
-    internal static class WorldScale
+    public static class WorldScale
     {
         /// <summary>Aktueller Faktor (1 = normale Größe).</summary>
         public static float S = 1f;
@@ -204,8 +204,30 @@ namespace Breitengrade
         static readonly int AshDistance = UnityEngine.Shader.PropertyToID("_AshlandsDistance");
         static readonly int AshOffset = UnityEngine.Shader.PropertyToID("_AshlandsYOffset");
 
+        static readonly HashSet<int> s_done = new HashSet<int>();
+        static float s_next;
+
+        /// <summary>Alle 10 s: neu geladene Materialien mit Ashlands-/Wasserrand-Werten anpassen.</summary>
+        public static void Rescan()
+        {
+            if (UnityEngine.Time.time < s_next) return;
+            s_next = UnityEngine.Time.time + 10f;
+            try
+            {
+                int n = 0;
+                foreach (var mat in UnityEngine.Resources.FindObjectsOfTypeAll<UnityEngine.Material>())
+                {
+                    if (mat == null || !s_done.Add(mat.GetInstanceID()) || mat.shader == null) continue;
+                    if (mat.HasProperty(WaterEdge) || mat.HasProperty(AshDistance) || mat.HasProperty(AshOffset)) { Apply(mat); n++; }
+                }
+                if (n > 0) Plugin.Log.LogInfo($"[Wasser] {n} neue Materialien angepasst.");
+            }
+            catch (Exception e) { Plugin.Log.LogWarning("[Wasser] " + e.Message); }
+        }
+
         public static void ApplyAll()
         {
+            s_done.Clear();
             try
             {
                 // Alle Materialien mit diesen Werten (Wasser, aber auch Gelände/Meeresboden und Effekte),

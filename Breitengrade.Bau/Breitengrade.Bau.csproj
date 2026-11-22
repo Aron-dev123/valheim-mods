@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stadtbau-Modul der Breitengrade-Mod. Wird vom Hauptmod zur Laufzeit geladen und kann im
+    laufenden Spiel neu geladen werden. Jeder Build bekommt deshalb einen eigenen Assembly-Namen
+    (mit Uhrzeit); die alten Versionen im Zielordner werden beim Kopieren entfernt.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <BuildStamp>$([System.DateTime]::Now.ToString("yyyyMMddHHmmss"))</BuildStamp>
+    <AssemblyName>Breitengrade.Bau.$(BuildStamp)</AssemblyName>
+    <RootNamespace>Breitengrade.Bau</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <DebugType>none</DebugType>
+    <BauTarget>$(ValheimPath)\BepInEx\breitengrade_bau</BauTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="netstandard" HintPath="$(ValheimManaged)\netstandard.dll" Private="false" />
+    <Reference Include="mscorlib" HintPath="$(ValheimManaged)\mscorlib.dll" Private="false" />
+    <Reference Include="System" HintPath="$(ValheimManaged)\System.dll" Private="false" />
+    <Reference Include="System.Core" HintPath="$(ValheimManaged)\System.Core.dll" Private="false" />
+    <Reference Include="UnityEngine" HintPath="$(ValheimManaged)\UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(ValheimManaged)\UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.PhysicsModule" HintPath="$(ValheimManaged)\UnityEngine.PhysicsModule.dll" Private="false" />
+    <Reference Include="assembly_valheim" HintPath="$(ValheimManaged)\assembly_valheim.dll" Private="false" />
+    <Reference Include="assembly_utils" HintPath="$(ValheimManaged)\assembly_utils.dll" Private="false" />
+    <Reference Include="BepInEx" HintPath="$(BepInExCore)\BepInEx.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(BepInExCore)\0Harmony.dll" Private="false" />
+    <Reference Include="Breitengrade" HintPath="..\Breitengrade\bin\Release\netstandard2.1\Breitengrade.dll" Private="false" />
+  </ItemGroup>
+
+  <Target Name="CopyBau" AfterTargets="Build">
+    <ItemGroup>
+      <OldBau Include="$(BauTarget)\Breitengrade.Bau*.dll" />
+    </ItemGroup>
+    <MakeDir Directories="$(BauTarget)" />
+    <Delete Files="@(OldBau)" ContinueOnError="true" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BauTarget)" />
+    <Message Importance="high" Text="Stadtbau-Modul: $(BauTarget)\$(AssemblyName).dll" />
+  </Target>
+
+</Project>

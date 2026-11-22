@@ -25,6 +25,7 @@
     <Reference Include="Splatform" HintPath="$(ValheimManaged)\Splatform.dll" Private="false" />
     <Reference Include="Unity.TextMeshPro" HintPath="$(ValheimManaged)\Unity.TextMeshPro.dll" Private="false" />
     <Reference Include="UnityEngine.UI" HintPath="$(ValheimManaged)\UnityEngine.UI.dll" Private="false" />
+    <Reference Include="UnityEngine.ScreenCaptureModule" HintPath="$(ValheimManaged)\UnityEngine.ScreenCaptureModule.dll" Private="false" />
     <Reference Include="UnityEngine.PhysicsModule" HintPath="$(ValheimManaged)\UnityEngine.PhysicsModule.dll" Private="false" />
     <Reference Include="BepInEx" HintPath="$(BepInExCore)\BepInEx.dll" Private="false" />
     <Reference Include="0Harmony" HintPath="$(BepInExCore)\0Harmony.dll" Private="false" />
