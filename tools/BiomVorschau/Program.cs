@@ -4,6 +4,17 @@ using Breitengrade;
 // Zeichnet die Biom-Karte der Breitengrade-Mod als PNG, ohne Valheim zu starten.
 // Aufruf: dotnet run -- [ausgabe.png] [seed] [grenzen] [welligkeit] [pixel]
 
+// Planetos: dotnet run -- planetos <ausgabe.png> [weltgroesse]
+if (args.Length > 0 && args[0] == "planetos")
+{
+    float scale = args.Length > 2 ? float.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture) : 1.5f;
+    Planetos.Load(File.ReadAllBytes(Path.Combine("..", "..", "Breitengrade", "Planetos.biome.gz")));
+    Latitude.Configure(12345, null, 400f, scale);
+    Planetos.Configure(12345, scale);
+    Planetos.Enabled = true;
+    args = new[] { args.Length > 1 ? args[1] : "planetos-welt.png", "12345", Latitude.DefaultBounds, "400", "1024", "planetos" };
+}
+bool planetosMode = args.Length > 5 && args[5] == "planetos";
 string outPath = args.Length > 0 ? args[0] : "biom-vorschau.png";
 int seed = args.Length > 1 ? int.Parse(args[1]) : 12345;
 string boundsText = args.Length > 2 ? args[2] : Latitude.DefaultBounds;
@@ -15,7 +26,7 @@ if (!Latitude.TryParseBounds(boundsText, out var bounds))
     Console.Error.WriteLine("Ungültige Grenzen.");
     return 1;
 }
-Latitude.Configure(seed, bounds, wobble);
+if (!planetosMode) Latitude.Configure(seed, bounds, wobble);
 
 var colors = new Dictionary<int, (byte r, byte g, byte b)>
 {
@@ -27,10 +38,12 @@ var colors = new Dictionary<int, (byte r, byte g, byte b)>
     [Latitude.BlackForest] = (35, 85, 40),
     [Latitude.Mountain] = (215, 215, 225),
     [Latitude.DeepNorth] = (170, 210, 245),
+    [Latitude.Ocean] = (30, 60, 120),
 };
 (byte r, byte g, byte b) ocean = (30, 60, 120), outside = (12, 12, 16);
 
-const float worldRadius = 10500f, landRadius = 10250f;
+float S = planetosMode ? Latitude.Scale : 1f;
+float worldRadius = 10500f * S, landRadius = 10250f * S;
 var px = new byte[size * size * 3];
 for (int py = 0; py < size; py++)
 {
@@ -42,8 +55,9 @@ for (int py = 0; py < size; py++)
         float d = MathF.Sqrt(x * x + z * z);
         var c = d > worldRadius ? outside : d > landRadius ? ocean : colors[Latitude.GetBiome(x, z)];
 
+        if (planetosMode && d <= landRadius && !float.IsNaN(Planetos.WallHeight(x, z, 260f))) c = (255, 255, 255);
         // Gitter alle 2000 m und Markierung der Weltmitte (Startpunkt)
-        if (d <= landRadius)
+        if (d <= landRadius && !planetosMode)
         {
             bool grid = MathF.Abs(x % 2000f) < 18f || MathF.Abs(z % 2000f) < 18f;
             if (grid) c = ((byte)(c.r * 0.8f), (byte)(c.g * 0.8f), (byte)(c.b * 0.8f));
@@ -64,7 +78,7 @@ int total = 0;
 for (int iz = -100; iz <= 100; iz++)
 for (int ix = -100; ix <= 100; ix++)
 {
-    float x = ix * 100f, z = iz * 100f;
+    float x = ix * 100f * S, z = iz * 100f * S;
     if (x * x + z * z > landRadius * landRadius) continue;
     int b = Latitude.GetBiome(x, z);
     counts[b] = counts.TryGetValue(b, out var n) ? n + 1 : 1;
@@ -75,6 +89,8 @@ for (int i = 0; i < Latitude.BandBiomes.Length; i++)
     counts.TryGetValue(Latitude.BandBiomes[i], out var n);
     Console.WriteLine($"{Latitude.BandNames[i],-13} {100.0 * n / total,5:0.0} %");
 }
+counts.TryGetValue(Latitude.Ocean, out var oceanCount);
+Console.WriteLine($"{"Meer",-13} {100.0 * oceanCount / total,5:0.0} %");
 Console.WriteLine($"Startpunkt (0,0): {Latitude.BandNames[Latitude.BandIndex(0, 0)]}");
 Console.WriteLine($"Gespeichert: {Path.GetFullPath(outPath)}");
 return 0;

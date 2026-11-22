@@ -20,7 +20,7 @@ namespace Breitengrade
         {
             float wx = AltBiomeWorldData.MapSpaceToWorldSpace((float)gx);
             float wz = AltBiomeWorldData.MapSpaceToWorldSpace((float)gy);
-            float size = Math.Max(300f, Plugin.SectorSize.Value);
+            float size = Math.Max(300f, Plugin.SectorSize.Value) * WorldScale.S;
 
             int cx = (int)Math.Floor(wx / size), cz = (int)Math.Floor(wz / size);
             long best = 0;
@@ -56,7 +56,7 @@ namespace Breitengrade
         static void Postfix(AltBiomeWorldData __instance)
         {
             Sectors.RegionOf.Clear();
-            try { Diagnostics.LogSectors(__instance); }
+            try { Diagnostics.LogSectors(__instance); SectorCheck.Run(__instance); }
             catch (Exception e) { Plugin.Log.LogWarning("[Diagnose] Sektoren: " + e.Message); }
         }
     }
@@ -112,6 +112,7 @@ namespace Breitengrade
                                    $"(soll {a.m_minAmountSpawned}-{a.m_maxAmountSpawned}), Rand {a.m_minEdgeSize}-{a.m_maxEdgeSize}, " +
                                    $"Höhe {a.m_minAvgHeight}-{a.m_maxAvgHeight}, MinAbstand {a.m_minDistanceFromCenter}, " +
                                    $"Nachbar nötig {a.m_requireNeighbor}, Nachbar verboten {a.m_notNeighbor}, " +
+                                   $"Boden-Textur {a.m_terrainTextureOverride}, " +
                                    $"gültige Sektoren {a.ValidPlacementSectors}");
             }
         }

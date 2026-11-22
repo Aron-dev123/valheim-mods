@@ -10,6 +10,7 @@
   <!-- Dieselbe Biom-Logik wie in der Mod, damit die Vorschau genau passt. -->
   <ItemGroup>
     <Compile Include="..\..\Breitengrade\Latitude.cs" Link="Latitude.cs" />
+    <Compile Include="..\..\Breitengrade\Planetos.cs" Link="Planetos.cs" />
   </ItemGroup>
 
 </Project>

@@ -10,9 +10,14 @@ namespace Breitengrade
 
         public static void OnWorldGenerator(World world)
         {
-            Active = world != null && !world.m_menu &&
+            bool planetos = world != null && !world.m_menu &&
+                            string.Equals(world.m_name, Plugin.PlanetosName.Value, StringComparison.OrdinalIgnoreCase);
+            Active = planetos || world != null && !world.m_menu &&
                      string.Equals(world.m_name, Plugin.WorldName.Value, StringComparison.OrdinalIgnoreCase);
+            Planetos.Enabled = planetos;
 
+            WorldScale.S = Active ? WorldScale.Clamp(Plugin.WorldScaleFactor.Value) : 1f;
+            MinimapScale.Apply();
             if (!Active) return;
 
             if (!Latitude.TryParseBounds(Plugin.BandBounds.Value, out var bounds))
@@ -20,9 +25,27 @@ namespace Breitengrade
                 Plugin.Log.LogWarning($"Grenzen \"{Plugin.BandBounds.Value}\" ungültig, nehme Standard.");
                 Latitude.TryParseBounds(Latitude.DefaultBounds, out bounds);
             }
-            Latitude.Configure(world.m_seed, bounds, Plugin.Wobble.Value);
+            Latitude.SeaEnabled = Plugin.SeaEnabled.Value && !planetos;
+            float scale = WorldScale.S;
+            Latitude.SeaX = Plugin.SeaX.Value * scale;
+            Latitude.SeaZ = Plugin.SeaZ.Value * scale;
+            Latitude.SeaRadius = Plugin.SeaRadius.Value * scale;
+            Latitude.IslandRadius = Math.Min(Plugin.IslandRadius.Value, Plugin.SeaRadius.Value - 300f) * scale;
+            Latitude.Configure(world.m_seed, bounds, Plugin.Wobble.Value, scale);
+            if (planetos)
+            {
+                if (!Planetos.Loaded) Planetos.Load(PlanetosData.Read());
+                var t0 = DateTime.Now;
+                Planetos.Configure(world.m_seed, scale);
+                Plugin.Log.LogInfo($"[Planetos] Karte vorbereitet ({(DateTime.Now - t0).TotalSeconds:0.0} s, " +
+                                   $"{Planetos.PixelSize:0.#} m je Kartenpixel).");
+            }
+            MageTower.Configure();
+            VegetationAdjuster.OnWorldChanged();
             LocationScaler.OnWorldChanged();
-            Plugin.Log.LogInfo($"Breitengrade AKTIV für Welt \"{world.m_name}\" (Seed {world.m_seedName}).");
+            TestPortals.OnWorldChanged();
+            Patch_SpawnPlaza.Reset();
+            Plugin.Log.LogInfo($"{(planetos ? "Planetos" : "Breitengrade")} AKTIV für Welt \"{world.m_name}\" (Seed {world.m_seedName}), Weltgröße x{scale}.");
         }
     }
 
@@ -171,19 +194,92 @@ namespace Breitengrade
             // Ozean raus: alles auf Landhöhe anheben, Form der Hügel bleibt erhalten.
             h = Plugin.LandMin.Value + Math.Max(h, 0f) * 0.8f;
 
+            // Höhe begrenzen: im Süden wie normales Land (keine verschneiten Kuppen),
+            // durch den Black Forest nach Norden ansteigend, ab Mountain frei.
+            float cap = Latitude.HeightCap(wx, wy, Plugin.SouthHeightCap.Value, Plugin.NorthHeightCap.Value);
+            h = SoftCap(h, Plugin.LandMin.Value, cap);
+
             // Mountain-Band anheben, damit dort echte Berge stehen.
             h += Plugin.MountainLift.Value * Latitude.MountainFactor(wx, wy);
 
-            // Weltrand wie im Original: ab 10000 m fällt das Land ins Meer ab.
-            float dist = DUtils.Length(wx, wy);
-            if (dist > 10000f)
+            // Großes Meer: zur Küste hin abfallen, draußen tiefes Wasser (wie normaler Ozean).
+            float coast = Latitude.CoastDistance(wx, wy);
+            if (coast > -150f)
             {
-                h = Lerp(h, -0.2f, DUtils.LerpStep(10000f, 10500f, dist));
-                if (dist > 10490f) h = Lerp(h, -2f, DUtils.LerpStep(10490f, 10500f, dist));
+                float t = Smooth01((coast + 150f) / 550f);
+                h = Lerp(h, -0.25f, t);
+            }
+
+            // Weltrand wie im Original: ab 10000 m fällt das Land ins Meer ab.
+            float dist = DUtils.Length(wx, wy), S = WorldScale.S;
+            if (dist > 10000f * S)
+            {
+                h = Lerp(h, -0.2f, DUtils.LerpStep(10000f * S, 10500f * S, dist));
+                if (dist > 10490f * S) h = Lerp(h, -2f, DUtils.LerpStep(10490f * S, 10500f * S, dist));
             }
             return h;
         }
 
         static float Lerp(float a, float b, float t) => a + (b - a) * t;
+
+        /// <summary>Weiche Obergrenze: kleine Höhen bleiben, große nähern sich langsam der Grenze.</summary>
+        static float SoftCap(float h, float floor, float cap)
+        {
+            if (h <= floor) return h;
+            float range = cap - floor;
+            if (range <= 0.001f) return floor;
+            return cap - range * (float)Math.Exp(-(h - floor) / range);
+        }
+
+        static float Smooth01(float v)
+        {
+            v = v < 0f ? 0f : (v > 1f ? 1f : v);
+            return v * v * (3f - 2f * v);
+        }
+    }
+}
+
+namespace Breitengrade
+{
+    /// <summary>
+    /// Ashlands und Deep North berechnen ihr Gelände mit eigenen Formeln, die auf den Abstand zu
+    /// ihrem normalen (ringförmigen) Gebiet bauen. Bei uns entstehen dadurch Meeresflächen.
+    /// Wir heben alles unter dem Meeresspiegel auf festes Land an (nur innerhalb des Weltrands).
+    /// </summary>
+    internal static class LandFloor
+    {
+        // Meeresspiegel liegt bei 0.15 (= 30 m). 0.165 = 33 m.
+        public const float Floor = 0.165f;
+
+        public static void Raise(float wx, float wy, ref float height)
+        {
+            if (!State.Active || height >= Floor) return;
+            if (DUtils.Length(wx, wy) > 10000f * WorldScale.S) return; // Weltrand bleibt Wasser
+            height = Floor;
+        }
+    }
+
+    [HarmonyLib.HarmonyPatch(typeof(WorldGenerator), "GetAshlandsHeight")]
+    static class Patch_AshlandsHeight
+    {
+        static void Postfix(float wx, float wy, ref float __result) => LandFloor.Raise(wx, wy, ref __result);
+    }
+
+    [HarmonyLib.HarmonyPatch(typeof(WorldGenerator), "GetAshlandsHeightPregenerate")]
+    static class Patch_AshlandsHeightPregenerate
+    {
+        static void Postfix(float wx, float wy, ref float __result) => LandFloor.Raise(wx, wy, ref __result);
+    }
+
+    [HarmonyLib.HarmonyPatch(typeof(WorldGenerator), "GetDeepNorthHeight")]
+    static class Patch_DeepNorthHeight
+    {
+        static void Postfix(float wx, float wy, ref float __result) => LandFloor.Raise(wx, wy, ref __result);
+    }
+
+    [HarmonyLib.HarmonyPatch(typeof(WorldGenerator), "GetDeepNorthHeightPregenerate")]
+    static class Patch_DeepNorthHeightPregenerate
+    {
+        static void Postfix(float wx, float wy, ref float __result) => LandFloor.Raise(wx, wy, ref __result);
     }
 }
